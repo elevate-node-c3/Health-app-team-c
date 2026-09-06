@@ -1,0 +1,144 @@
+# services:
+#   api:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: nestjs_api
+#     restart: unless-stopped
+#     ports:
+#       - '${PORT:-3002}:3002'
+#     env_file:
+#       - .env
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#     networks:
+#       - app-network
+
+#   postgres:
+#     image: postgres:16-alpine
+#     container_name: nestjs_postgres
+#     restart: unless-stopped
+#     ports:
+#       - '5433:5432'
+#     env_file:
+#       - .env
+#     environment:
+#       POSTGRES_USER: ${DB_USERNAME}
+#       POSTGRES_PASSWORD: ${DB_PASSWORD}
+#       POSTGRES_DB: ${DB_NAME}
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+#     healthcheck:
+#       test: [ 'CMD-SHELL', 'pg_isready -U ${DB_USERNAME} -d ${DB_NAME}' ]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 5
+#     networks:
+#       - app-network
+
+#   pgadmin:
+#     image: dpage/pgadmin4:latest
+#     container_name: nestjs_pgadmin
+#     restart: unless-stopped
+#     ports:
+#       - '5050:80'
+#     environment:
+#       PGADMIN_DEFAULT_EMAIL: admin@admin.com
+#       PGADMIN_DEFAULT_PASSWORD: admin
+#     depends_on:
+#       - postgres
+#     networks:
+#       - app-network
+
+# volumes:
+#   postgres-data:
+
+# networks:
+#   app-network:
+#     driver: bridge
+
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: nestjs_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Inside the Docker network, the API reaches Postgres by SERVICE NAME,
+      # not "localhost" — "localhost" inside the api container means the
+      # container itself, not the postgres container.
+      DB_HOST: postgres
+      DB_PORT: 5432 # ALWAYS 5432 here — Postgres's internal container port
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SYNC: ${DB_SYNC}
+      DB_LOGGING: ${DB_LOGGING}
+      PORT: ${PORT}
+      API_PREFIX: ${API_PREFIX}
+    ports:
+      # Both sides now follow PORT from .env, so PORT=3002 exposes 3002:3002
+      # (matches whatever port the Nest app actually listens on inside).
+      - '${PORT:-3000}:${PORT:-3000}'
+    volumes:
+      - ./:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: nestjs_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      # Host-side port = DB_HOST_PORT (5433, avoids your native Postgres on
+      # 5432). Internal container port stays 5432 always — that's what the
+      # `api` service connects to via DB_PORT=5432 above. These two are
+      # deliberately independent now.
+      - '${DB_HOST_PORT:-5433}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U ${DB_USERNAME}' ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: nestjs_pgadmin
+    restart: unless-stopped
+    ports:
+      - '5050:80'
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+volumes:
+  postgres-data:
+
+networks:
+  app-network:
+    driver: bridge
