@@ -59,7 +59,7 @@ export class VerifyEmailUseCase {
         await this.authTokenService.saveRefreshToken(user.id, tokens.refreshToken);
 
         return {
-            message: 'Email verified successfully. You can now book appointments.',
+            message: 'Email verified successfully.',
             data: {
                 ...tokens,
                 isVerified: true,

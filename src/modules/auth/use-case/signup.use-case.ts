@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { UserEntity, UserStatus } from '../entities/user.entity';
 import { SignupDto } from '../dto/sign-up.dto';
 import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
+import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 import { normalizeEgyptianPhoneNumber } from '../../../common/utils/phone.util';
 import { generateOtpCode, getOtpExpirationTime } from '../../../common/utils/otp.util';
 import { HashHelper } from '../../../common/utils/hash.util';
@@ -11,10 +12,13 @@ import { maskEmail } from 'src/common/utils/email.utils';
 
 @Injectable()
 export class SignupUseCase {
+    private readonly logger = new Logger(SignupUseCase.name);
+
     constructor(
         @InjectRepository(UserEntity)
         private readonly userRepository: Repository<UserEntity>,
         private readonly dataSource: DataSource,
+        private readonly outboxProcessorService: OutboxProcessorService,
     ) { }
 
     async execute(dto: SignupDto) {
@@ -48,6 +52,8 @@ export class SignupUseCase {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
+
+        let savedOutboxEventId: string;
 
         try {
             if (user && !user.isVerified) {
@@ -86,27 +92,36 @@ export class SignupUseCase {
                 isProcessed: false,
             });
 
-            await queryRunner.manager.save(outboxEvent);
+            const savedEvent = await queryRunner.manager.save(outboxEvent);
+            savedOutboxEventId = savedEvent.id;
 
             await queryRunner.commitTransaction();
-
-            return {
-                statusCode: 201,
-                message: `Registration successful. Verification code sent. in your email ${maskEmail(user.email)}`,
-                data: {
-                    userId: user.id,
-                    fullName: user.fullName,
-                    email: user.email,
-                    phone: user.phoneNumber,
-                    status: user.status,
-                    isVerified: user.isVerified,
-                },
-            };
         } catch (err) {
             await queryRunner.rollbackTransaction();
             throw err;
         } finally {
             await queryRunner.release();
         }
+
+        if (savedOutboxEventId) {
+            setImmediate(() => {
+                this.outboxProcessorService.triggerPublish(savedOutboxEventId).catch((err) => {
+                    this.logger.error(`Instant outbox publish failed for event ID ${savedOutboxEventId}: ${err.message}`);
+                });
+            });
+        }
+
+        return {
+            statusCode: 201,
+            message: `Registration successful. Verification code sent. in your email ${maskEmail(user.email)}`,
+            data: {
+                userId: user.id,
+                fullName: user.fullName,
+                email: user.email,
+                phone: user.phoneNumber,
+                status: user.status,
+                isVerified: user.isVerified,
+            },
+        };
     }
 }

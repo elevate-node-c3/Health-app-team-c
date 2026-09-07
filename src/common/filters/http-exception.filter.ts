@@ -16,7 +16,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             status = exception.getStatus();
             const res: any = exception.getResponse();
 
-            errorCode = res.code || res.errorCode || errorCode;
+            errorCode = res.code || res.errorCode || HttpStatus[status] || 'INTERNAL_SERVER_ERROR';
             message = res.messageKey || res.message || message;
 
             if (Array.isArray(res.message)) {

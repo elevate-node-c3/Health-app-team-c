@@ -14,6 +14,7 @@ import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { AuthTokenService } from './auth-token.service';
 import { AuthRabbitMQConsumer } from './consumers/auth-rabbitmq.consumer';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
+import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
 
 @Global()
 @Module({
@@ -38,6 +39,7 @@ import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entit
         MailService,
         AuthTokenService,
         AuthRabbitMQConsumer,
+        OutboxProcessorService,
     ],
     exports: [AuthService, TokenUtils],
 })
