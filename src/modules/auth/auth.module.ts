@@ -9,10 +9,11 @@ import { SignupUseCase } from './use-case/signup.use-case';
 import { VerifyEmailUseCase } from './use-case/verify-email.use-case';
 import { ResendOtpUseCase } from './use-case/resend-otp.use-case';
 import { JwtModule } from '@nestjs/jwt';
-import { UserRegisteredListener } from './listeners/user-registered.listener';
 import { MailService } from 'src/common/mail/mail.service';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { AuthTokenService } from './auth-token.service';
+import { AuthRabbitMQConsumer } from './consumers/auth-rabbitmq.consumer';
+import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 
 @Global()
 @Module({
@@ -20,7 +21,8 @@ import { AuthTokenService } from './auth-token.service';
         TypeOrmModule.forFeature([
             UserEntity,
             GuestSearchEntity,
-            RefreshTokenEntity
+            RefreshTokenEntity,
+            OutboxEventEntity,
         ]),
         JwtModule.register({
             global: false,
@@ -33,9 +35,9 @@ import { AuthTokenService } from './auth-token.service';
         VerifyEmailUseCase,
         ResendOtpUseCase,
         TokenUtils,
-        UserRegisteredListener,
         MailService,
         AuthTokenService,
+        AuthRabbitMQConsumer,
     ],
     exports: [AuthService, TokenUtils],
 })

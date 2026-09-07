@@ -1,17 +1,19 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
 import { ResendOtpDto } from '../dto/resend-otp.dto';
 import { generateOtpCode, getOtpExpirationTime } from '../../../common/utils/otp.util';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
 
 @Injectable()
 export class ResendOtpUseCase {
     constructor(
         @InjectRepository(UserEntity)
         private readonly userRepository: Repository<UserEntity>,
-        private readonly eventEmitter: EventEmitter2,
+        @InjectRepository(OutboxEventEntity)
+        private readonly outboxRepository: Repository<OutboxEventEntity>,
+        private readonly dataSource: DataSource,
     ) { }
 
     async execute(dto: ResendOtpDto) {
@@ -33,12 +35,22 @@ export class ResendOtpUseCase {
         user.code_expires_at = newExpiresAt;
         user.failedAttemptsCount = 0;
 
-        await this.userRepository.save(user);
+        await this.dataSource.transaction(async (manager) => {
+            await manager.save(user);
 
-        this.eventEmitter.emit('user.registered', {
-            userId: user.id,
-            email: user.email,
-            otpCode: newOtpCode,
+            const outboxEvent = manager.create(OutboxEventEntity, {
+                aggregateType: 'User',
+                aggregateId: user.id.toString(),
+                eventType: 'user.registered',
+                payload: {
+                    userId: user.id,
+                    email: user.email,
+                    otpCode: newOtpCode,
+                },
+                isProcessed: false,
+            });
+
+            await manager.save(outboxEvent);
         });
 
         return {
