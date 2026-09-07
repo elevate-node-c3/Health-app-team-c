@@ -8,7 +8,7 @@ import { OutboxProcessorService } from '../../../common/outbox/services/outbox-p
 import { normalizeEgyptianPhoneNumber } from '../../../common/utils/phone.util';
 import { generateOtpCode, getOtpExpirationTime } from '../../../common/utils/otp.util';
 import { HashHelper } from '../../../common/utils/hash.util';
-import { maskEmail } from 'src/common/utils/email.utils';
+import { maskEmail } from '../../../common/utils/email.utils';
 
 @Injectable()
 export class SignupUseCase {

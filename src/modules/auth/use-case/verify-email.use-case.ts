@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity, UserStatus } from '../entities/user.entity';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
-import { TokenUtils } from 'src/common/utils/token.utils';
+import { TokenUtils } from '../../../common/utils/token.utils';
 import { AuthTokenService } from '../auth-token.service';
 
 @Injectable()
@@ -21,6 +21,7 @@ export class VerifyEmailUseCase {
         const user = await this.userRepository.findOne({ where: { email: normalizedEmail } });
         if (!user) {
             throw new NotFoundException('This email is not registered');
+
         }
 
         if (user.isVerified) {
