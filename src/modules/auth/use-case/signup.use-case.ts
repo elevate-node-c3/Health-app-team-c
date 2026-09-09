@@ -21,7 +21,7 @@ export class SignupUseCase {
         private readonly outboxProcessorService: OutboxProcessorService,
     ) { }
 
-    async execute(dto: SignupDto) {
+    async execute(dto: SignupDto, guestDeviceId?: string) {
         if (dto.password !== dto.confirmPassword) {
             throw new BadRequestException('Passwords do not match.');
         }
@@ -54,6 +54,10 @@ export class SignupUseCase {
         await queryRunner.startTransaction();
 
         let savedOutboxEventId: string;
+        let savedGuestPromotedEventId: string | undefined;
+
+        const normalizedGuestDeviceId = guestDeviceId?.trim() || undefined;
+        const bookingIntent = (dto as any).bookingIntent as Record<string, any> | undefined;
 
         try {
             if (user && !user.isVerified) {
@@ -95,6 +99,21 @@ export class SignupUseCase {
             const savedEvent = await queryRunner.manager.save(outboxEvent);
             savedOutboxEventId = savedEvent.id;
 
+            if (normalizedGuestDeviceId) {
+                const guestPromotedEvent = queryRunner.manager.create(OutboxEventEntity, {
+                    aggregateType: 'USER',
+                    eventType: 'guest.promoted',
+                    payload: {
+                        guestDeviceId: normalizedGuestDeviceId,
+                        userId: user.id,
+                        bookingIntent: bookingIntent ?? null,
+                    },
+                    isProcessed: false,
+                });
+                const savedGuestEvent = await queryRunner.manager.save(guestPromotedEvent);
+                savedGuestPromotedEventId = savedGuestEvent.id;
+            }
+
             await queryRunner.commitTransaction();
         } catch (err) {
             await queryRunner.rollbackTransaction();
@@ -110,18 +129,32 @@ export class SignupUseCase {
                 });
             });
         }
+        if (savedGuestPromotedEventId) {
+            setImmediate(() => {
+                this.outboxProcessorService.triggerPublish(savedGuestPromotedEventId!).catch((err) => {
+                    this.logger.error(`Instant outbox publish failed for guest.promoted event ID ${savedGuestPromotedEventId}: ${err.message}`);
+                });
+            });
+        }
+
+        const responseData: any = {
+            userId: user.id,
+            fullName: user.fullName,
+            email: user.email,
+            phone: user.phoneNumber,
+            status: user.status,
+            isVerified: user.isVerified,
+        };
+        if (bookingIntent) {
+            responseData.pendingBookingIntent = bookingIntent;
+        } else if (normalizedGuestDeviceId) {
+            responseData.pendingBookingIntent = null;
+        }
 
         return {
             statusCode: 201,
             message: `Registration successful. Verification code sent. in your email ${maskEmail(user.email)}`,
-            data: {
-                userId: user.id,
-                fullName: user.fullName,
-                email: user.email,
-                phone: user.phoneNumber,
-                status: user.status,
-                isVerified: user.isVerified,
-            },
+            data: responseData,
         };
     }
 }
