@@ -19,6 +19,8 @@ import { AuthRabbitMQConsumer } from './consumers/auth-rabbitmq.consumer';
 import { GuestPromotionConsumer } from './consumers/guest-promotion.consumer';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
+import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
+import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 
 @Global()
 @Module({
@@ -30,6 +32,7 @@ import { OutboxProcessorService } from 'src/common/outbox/services/outbox-proces
             GuestPromotionEntity,
             RefreshTokenEntity,
             OutboxEventEntity,
+            ProcessedEventEntity,
         ]),
         JwtModule.register({
             global: false,

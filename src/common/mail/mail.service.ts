@@ -34,9 +34,12 @@ export class MailService {
             });
 
             this.logger.debug(`Verification email sent: ${info.messageId}`);
+
         } catch (error) {
             this.logger.error('Failed to send verification email', error.stack);
             throw error;
         }
     }
 }
+
+
