@@ -15,7 +15,6 @@ export class OutboxProcessorService {
         private readonly amqpConnection: AmqpConnection,
     ) { }
 
-
     async triggerPublish(eventId: string) {
         const event = await this.outboxRepository.findOne({ where: { id: eventId, isProcessed: false } });
         if (!event) return;
@@ -25,6 +24,7 @@ export class OutboxProcessorService {
                 'auth_exchange',
                 event.eventType,
                 event.payload,
+                { headers: { 'x-event-id': event.id } },
             );
 
             this.logger.log(`Successfully published event: ${event.eventType} (ID: ${event.id})`);

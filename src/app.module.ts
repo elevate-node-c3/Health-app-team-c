@@ -26,10 +26,8 @@ import { ScheduleModule } from '@nestjs/schedule';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         exchanges: [
-          {
-            name: 'auth_exchange',
-            type: 'topic',
-          },
+          { name: 'auth_exchange', type: 'topic' },
+          { name: 'auth_exchange.dlx', type: 'topic' },
         ],
         uri: configService.get<string>('rabbitmq.uri')!,
         connectionInitOptions: { wait: true },
