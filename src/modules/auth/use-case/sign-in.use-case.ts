@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { UserEntity } from '../entities/user.entity';
@@ -8,6 +8,8 @@ import { HashHelper } from '../../../common/utils/hash.util';
 import { TokenUtils } from '../../../common/utils/token.utils';
 import { AuthTokenService } from '../auth-token.service';
 import { SignInDto } from '../dto/sign-in.dto';
+import { normalizeEgyptianPhoneNumber } from '../../../common/utils/phone.util';
+import { PromoteGuestUseCase } from './promote-guest.use-case';
 
 @Injectable()
 export class SignInUseCase {
@@ -20,15 +22,38 @@ export class SignInUseCase {
         private readonly authTokenService: AuthTokenService,
         private readonly dataSource: DataSource,
         private readonly outboxProcessorService: OutboxProcessorService,
+        private readonly promoteGuestUseCase: PromoteGuestUseCase,
     ) {}
 
-    async execute(dto: SignInDto) {
-        const normalizedEmail = dto.email.toLowerCase().trim();
+    async execute(dto: SignInDto, guestDeviceId?: string) {
+        const rawIdentifier = ((dto as any).identifier ?? (dto as any).email ?? '').trim();
+        if (!rawIdentifier) {
+            throw new BadRequestException('Email or phone number cannot be blank.');
+        }
+        const isEmailAttempt = rawIdentifier.includes('@');
+        let user: UserEntity | null = null;
 
-        // 1 — Find the user
-        const user = await this.userRepository.findOne({ where: { email: normalizedEmail } });
+        if (isEmailAttempt) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(rawIdentifier)) {
+                throw new BadRequestException('Invalid email address');
+            }
+            const normalizedEmail = rawIdentifier.toLowerCase();
+            user = await this.userRepository.findOne({ where: { email: normalizedEmail } });
+        } else {
+            let phoneToNormalize = rawIdentifier;
+            if (phoneToNormalize.startsWith('20') && !phoneToNormalize.startsWith('+20')) {
+                phoneToNormalize = '+' + phoneToNormalize;
+            }
+            const normalizedPhone = normalizeEgyptianPhoneNumber(phoneToNormalize);
+            const phoneRegex = /^\+201[0125]\d{8}$/;
+            if (!phoneRegex.test(normalizedPhone)) {
+                throw new BadRequestException('Invalid Phone Number');
+            }
+            user = await this.userRepository.findOne({ where: { phoneNumber: normalizedPhone } });
+        }
+
         if (!user) {
-            // Constant-time-ish: still run hash compare to avoid timing leaks
             await HashHelper.comparePasswords('_dummy_', '$2b$10$dummydummydummydummydumm');
             throw new UnauthorizedException({
                 code: 'INVALID_CREDENTIALS',
@@ -36,7 +61,10 @@ export class SignInUseCase {
             });
         }
 
-        // 2 — Verify password
+        if (!user.passwordHash) {
+            throw new BadRequestException('Incorrect Password');
+        }
+
         const passwordValid = await HashHelper.comparePasswords(dto.password, user.passwordHash);
         if (!passwordValid) {
             throw new UnauthorizedException({
@@ -45,7 +73,6 @@ export class SignInUseCase {
             });
         }
 
-        // 3 — Require email verification
         if (!user.isVerified) {
             throw new UnauthorizedException({
                 code: 'EMAIL_NOT_VERIFIED',
@@ -53,7 +80,18 @@ export class SignInUseCase {
             });
         }
 
-        // 4 — Issue token family + publish session.created — all in one transaction
+        const normalizedGuestDeviceId = guestDeviceId?.trim();
+        if (normalizedGuestDeviceId) {
+            try {
+                await this.promoteGuestUseCase.execute({
+                    guestDeviceId: normalizedGuestDeviceId,
+                    userId: user.id,
+                });
+            } catch (err: any) {
+                this.logger.warn(`Guest promotion during signin failed: ${err.message}`);
+            }
+        }
+
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -63,8 +101,6 @@ export class SignInUseCase {
         let familyId: string;
 
         try {
-            // issueTokenFamily uses its own repository but we replicate the insert inside
-            // the transaction so the outbox write and token insert are atomic.
             const crypto = await import('crypto');
             familyId = crypto.randomUUID();
             rawRefreshToken = crypto.randomBytes(32).toString('hex');
@@ -106,7 +142,6 @@ export class SignInUseCase {
             await queryRunner.release();
         }
 
-        // 5 — Generate access token (outside the transaction — pure in-memory)
         const accessToken = this.tokenUtils.generateAccessToken({
             sub: user.id,
             email: user.email,
@@ -114,7 +149,6 @@ export class SignInUseCase {
             familyId,
         });
 
-        // 6 — Fire-and-forget outbox publish
         if (savedOutboxEventId) {
             setImmediate(() => {
                 this.outboxProcessorService.triggerPublish(savedOutboxEventId).catch((err) => {
@@ -123,14 +157,26 @@ export class SignInUseCase {
             });
         }
 
+        const tokens = { accessToken, refreshToken: rawRefreshToken };
+
         return {
             message: 'Signed in successfully.',
+            statusCode: 200,
             data: {
                 accessToken,
                 refreshToken: rawRefreshToken,
-                expiresIn: 900, // 15 minutes in seconds
+                expiresIn: 900,
                 userId: user.id,
                 status: user.status,
+                user: {
+                    id: user.id,
+                    fullName: user.fullName,
+                    email: user.email,
+                    phoneNumber: user.phoneNumber,
+                    status: user.status,
+                    isVerified: user.isVerified,
+                },
+                tokens,
             },
         };
     }

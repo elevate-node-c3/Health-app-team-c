@@ -12,7 +12,6 @@ import { RefreshTokenUseCase } from './use-case/refresh-token.use-case';
 import { SignOutDto } from './dto/sign-out.dto';
 import { SignOutUseCase } from './use-case/sign-out.use-case';
 
-
 @Injectable()
 export class AuthService {
     constructor(
@@ -28,8 +27,12 @@ export class AuthService {
         return await this.signupUseCase.execute(dto, guestDeviceId);
     }
 
-    async signin(dto: SigninDto, guestDeviceId?: string) {
-        return await this.signinUseCase.execute(dto, guestDeviceId);
+    async signIn(dto: SignInDto, guestDeviceId?: string) {
+        return await this.signInUseCase.execute(dto, guestDeviceId);
+    }
+
+    async signin(dto: SignInDto, guestDeviceId?: string) {
+        return this.signIn(dto, guestDeviceId);
     }
 
     async verifyEmail(dto: VerifyEmailDto) {
@@ -38,10 +41,6 @@ export class AuthService {
 
     async resendOtp(dto: ResendOtpDto) {
         return await this.resendOtpUseCase.execute(dto);
-    }
-
-    async signIn(dto: SignInDto) {
-        return await this.signInUseCase.execute(dto);
     }
 
     async refreshToken(dto: RefreshTokenDto) {

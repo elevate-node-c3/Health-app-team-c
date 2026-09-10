@@ -57,6 +57,21 @@ export class AuthTokenService {
      * Creates the first token in a new family (called on sign-in or email verification).
      * A new UUID is minted as the familyId; all future rotations share it.
      */
+    async saveRefreshToken(userId: string, token: string): Promise<void> {
+        const tokenHash = this.hashToken(token);
+        const expiresAt = this.expiresInDays(REFRESH_TOKEN_TTL_DAYS);
+        const entity = this.refreshTokenRepository.create({
+            familyId: crypto.randomUUID(),
+            userId,
+            tokenHash,
+            replacedByTokenHash: null,
+            revokedAt: null,
+            deviceLabel: null,
+            expiresAt,
+        });
+        await this.refreshTokenRepository.save(entity);
+    }
+
     async issueTokenFamily(
         userId: string,
         deviceLabel?: string,
