@@ -8,6 +8,7 @@ import { UserSearchEntity } from './entities/user-search.entity';
 import { GuestPromotionEntity } from './entities/guest-promotion.entity';
 import { TokenUtils } from '../../common/utils/token.utils';
 import { SignupUseCase } from './use-case/signup.use-case';
+import { SigninUseCase } from './use-case/signin.use-case';
 import { VerifyEmailUseCase } from './use-case/verify-email.use-case';
 import { ResendOtpUseCase } from './use-case/resend-otp.use-case';
 import { PromoteGuestUseCase } from './use-case/promote-guest.use-case';
@@ -42,6 +43,7 @@ import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
     providers: [
         AuthService,
         SignupUseCase,
+        SigninUseCase,
         VerifyEmailUseCase,
         ResendOtpUseCase,
         PromoteGuestUseCase,

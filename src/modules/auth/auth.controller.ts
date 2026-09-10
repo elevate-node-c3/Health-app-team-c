@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SignupDto } from './dto/sign-up.dto';
+import { SigninDto } from './dto/sign-in.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { UserStatus } from './entities/user.entity';
@@ -16,6 +17,12 @@ export class AuthController {
     @HttpCode(HttpStatus.CREATED)
     async signup(@Body() signupDto: SignupDto, @Headers('x-device-id') deviceId?: string) {
         return await this.authService.signup(signupDto, deviceId);
+    }
+
+    @Post('signin')
+    @HttpCode(HttpStatus.OK)
+    async signin(@Body() signinDto: SigninDto, @Headers('x-device-id') deviceId?: string) {
+        return await this.authService.signin(signinDto, deviceId);
     }
 
     @Post('verify-email')
