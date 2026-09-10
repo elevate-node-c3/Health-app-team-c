@@ -12,6 +12,11 @@ export interface StandardResponse<T> {
 @Injectable()
 export class TransformInterceptor<T> implements NestInterceptor<T, StandardResponse<T>> {
     intercept(context: ExecutionContext, next: CallHandler): Observable<StandardResponse<T>> {
+
+        if (context.getType() !== 'http') {
+            return next.handle();
+        }
+
         const ctx = context.switchToHttp();
         const response = ctx.getResponse<ExpressResponse>();
         const statusCode = response.statusCode;

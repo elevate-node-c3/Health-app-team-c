@@ -2,12 +2,15 @@ import {
     IsEmail,
     IsEnum,
     IsNotEmpty,
+    IsOptional,
     IsString,
     Matches,
-    MinLength
+    MinLength,
+    ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { Gender } from '../entities/user.entity';
+import { BookingIntentDto } from './booking-intent.dto';
 
 export class SignupDto {
     @IsNotEmpty({ message: 'Name cannot be blank.' })
@@ -41,4 +44,9 @@ export class SignupDto {
     @IsNotEmpty({ message: 'Confirm password cannot be blank.' })
     @IsString()
     confirmPassword: string;
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => BookingIntentDto)
+    bookingIntent?: BookingIntentDto;
 }

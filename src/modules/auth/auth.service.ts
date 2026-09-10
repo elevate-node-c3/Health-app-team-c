@@ -24,8 +24,8 @@ export class AuthService {
         private readonly signOutUseCase: SignOutUseCase,
     ) {}
 
-    async signup(dto: SignupDto) {
-        return await this.signupUseCase.execute(dto);
+    async signup(dto: SignupDto, guestDeviceId?: string) {
+        return await this.signupUseCase.execute(dto, guestDeviceId);
     }
 
     async verifyEmail(dto: VerifyEmailDto) {
@@ -51,4 +51,4 @@ export class AuthService {
     async signOutEverywhere(userId: string) {
         return await this.signOutUseCase.signOutEverywhere(userId);
     }
-}
+}

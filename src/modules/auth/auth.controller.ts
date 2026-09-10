@@ -1,14 +1,4 @@
-import {
-    Body,
-    Controller,
-    Get,
-    Post,
-    Req,
-    UseGuards,
-    HttpStatus,
-    HttpCode,
-    UnauthorizedException,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards, HttpStatus, HttpCode } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,8 +23,8 @@ export class AuthController {
 
     @Post('signup')
     @HttpCode(HttpStatus.CREATED)
-    async signup(@Body() signupDto: SignupDto) {
-        return await this.authService.signup(signupDto);
+    async signup(@Body() signupDto: SignupDto, @Headers('x-device-id') deviceId?: string) {
+        return await this.authService.signup(signupDto, deviceId);
     }
 
     @Post('verify-email')
@@ -127,4 +117,4 @@ export class AuthController {
             userId: req.userContext?.userId,
         };
     }
-}
+}
