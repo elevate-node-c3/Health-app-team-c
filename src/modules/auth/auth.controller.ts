@@ -10,7 +10,9 @@ import { SignInDto } from './dto/sign-in.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SignOutDto } from './dto/sign-out.dto';
 import { UserStatus } from './entities/user.entity';
-import { RefreshTokenUseCase } from './use-case/refresh-token.use-case';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -43,6 +45,22 @@ export class AuthController {
         return await this.authService.resendOtp(resendOtpDto);
     }
 
+    @Post('forgot-password')
+    @HttpCode(HttpStatus.OK)
+    async requestPasswordReset(@Body() forgotPasswordDto: ForgotPasswordDto) {
+        return await this.authService.requestPasswordReset(forgotPasswordDto);
+    }
+
+    @Post('verify-reset-code')
+    @HttpCode(HttpStatus.OK)
+    async verifyPasswordReset(@Body() verifyResetCodeDto: VerifyResetCodeDto) {
+        return await this.authService.verifyPasswordReset(verifyResetCodeDto);
+    }
+
+    @Post('reset-password')
+    @HttpCode(HttpStatus.OK)
+    async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+        return await this.authService.resetPassword(resetPasswordDto);
     @Post('refresh')
     @HttpCode(HttpStatus.OK)
     async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
