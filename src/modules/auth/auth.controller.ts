@@ -7,6 +7,9 @@ import { SignupDto } from './dto/sign-up.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { UserStatus } from './entities/user.entity';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -30,6 +33,23 @@ export class AuthController {
         return await this.authService.resendOtp(resendOtpDto);
     }
 
+    @Post('forgot-password')
+    @HttpCode(HttpStatus.OK)
+    async requestPasswordReset(@Body() forgotPasswordDto: ForgotPasswordDto) {
+        return await this.authService.requestPasswordReset(forgotPasswordDto);
+    }
+
+    @Post('verify-reset-code')
+    @HttpCode(HttpStatus.OK)
+    async verifyPasswordReset(@Body() verifyResetCodeDto: VerifyResetCodeDto) {
+        return await this.authService.verifyPasswordReset(verifyResetCodeDto);
+    }
+
+    @Post('reset-password')
+    @HttpCode(HttpStatus.OK)
+    async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+        return await this.authService.resetPassword(resetPasswordDto);
+    }
 
     @Get('me')
     @UseGuards(RolesGuard)

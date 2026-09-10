@@ -5,7 +5,12 @@ import { ResendOtpDto } from './dto/resend-otp.dto';
 import { ResendOtpUseCase } from './use-case/resend-otp.use-case';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyEmailUseCase } from './use-case/verify-email.use-case';
-
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RequestPasswordResetUseCase } from './use-case/request-password-reset.use-case';
+import { VerifyPasswordResetUseCase } from './use-case/verify-password-reset.use-case';
+import { ResetPasswordUseCase } from './use-case/reset-password.use-case';
 
 @Injectable()
 export class AuthService {
@@ -13,6 +18,9 @@ export class AuthService {
         private readonly signupUseCase: SignupUseCase,
         private readonly verifyEmailUseCase: VerifyEmailUseCase,
         private readonly resendOtpUseCase: ResendOtpUseCase,
+        private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
+        private readonly verifyPasswordResetUseCase: VerifyPasswordResetUseCase,
+        private readonly resetPasswordUseCase: ResetPasswordUseCase,
     ) { }
 
     async signup(dto: SignupDto, guestDeviceId?: string) {
@@ -27,4 +35,15 @@ export class AuthService {
         return await this.resendOtpUseCase.execute(dto);
     }
 
+    async requestPasswordReset(dto: ForgotPasswordDto) {
+        return await this.requestPasswordResetUseCase.execute(dto);
+    }
+
+    async verifyPasswordReset(dto: VerifyResetCodeDto) {
+        return await this.verifyPasswordResetUseCase.execute(dto);
+    }
+
+    async resetPassword(dto: ResetPasswordDto) {
+        return await this.resetPasswordUseCase.execute(dto);
+    }
 }

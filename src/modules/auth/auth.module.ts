@@ -21,6 +21,9 @@ import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entit
 import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+import { RequestPasswordResetUseCase } from './use-case/request-password-reset.use-case';
+import { VerifyPasswordResetUseCase } from './use-case/verify-password-reset.use-case';
+import { ResetPasswordUseCase } from './use-case/reset-password.use-case';
 
 @Global()
 @Module({
@@ -44,6 +47,9 @@ import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
         SignupUseCase,
         VerifyEmailUseCase,
         ResendOtpUseCase,
+        RequestPasswordResetUseCase,
+        VerifyPasswordResetUseCase,
+        ResetPasswordUseCase,
         PromoteGuestUseCase,
         TokenUtils,
         MailService,
