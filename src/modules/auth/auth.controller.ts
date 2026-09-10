@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Headers, UseGuards, HttpStatus, HttpCode } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards, HttpStatus, HttpCode, Headers, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -6,6 +6,9 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { SignupDto } from './dto/sign-up.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { SignInDto } from './dto/sign-in.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SignOutDto } from './dto/sign-out.dto';
 import { UserStatus } from './entities/user.entity';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
@@ -13,12 +16,21 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+    constructor(
+        private readonly authService: AuthService,
+        private readonly refreshTokenUseCase: RefreshTokenUseCase,
+    ) {}
 
     @Post('signup')
     @HttpCode(HttpStatus.CREATED)
     async signup(@Body() signupDto: SignupDto, @Headers('x-device-id') deviceId?: string) {
         return await this.authService.signup(signupDto, deviceId);
+    }
+
+    @Post('signin')
+    @HttpCode(HttpStatus.OK)
+    async signin(@Body() signinDto: SignInDto, @Headers('x-device-id') deviceId?: string) {
+        return await this.authService.signIn(signinDto, deviceId);
     }
 
     @Post('verify-email')
@@ -49,6 +61,35 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
         return await this.authService.resetPassword(resetPasswordDto);
+    @Post('refresh')
+    @HttpCode(HttpStatus.OK)
+    async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+        try {
+            return await this.authService.refreshToken(refreshTokenDto);
+        } catch (err) {
+            if (err instanceof UnauthorizedException) {
+                const code = (err.getResponse() as any)?.code;
+                if (code === 'SESSION_COMPROMISED') {
+                }
+            }
+            throw err;
+        }
+    }
+
+    @Post('signout')
+    @UseGuards(RolesGuard)
+    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
+    @HttpCode(HttpStatus.OK)
+    async signOut(@Body() signOutDto: SignOutDto, @Req() req: Request) {
+        return await this.authService.signOut(signOutDto, req.userContext!.userId!);
+    }
+
+    @Post('signout-everywhere')
+    @UseGuards(RolesGuard)
+    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
+    @HttpCode(HttpStatus.OK)
+    async signOutEverywhere(@Req() req: Request) {
+        return await this.authService.signOutEverywhere(req.userContext!.userId!);
     }
 
     @Get('me')

@@ -8,6 +8,8 @@ export interface UserContext {
     role: Role;
     userId?: string;
     deviceId?: string;
+    /** The refresh-token family this session belongs to. Carried from the access JWT. */
+    familyId?: string;
 }
 
 declare global {
@@ -20,7 +22,7 @@ declare global {
 
 @Injectable()
 export class AuthContextMiddleware implements NestMiddleware {
-    constructor(private readonly tokenUtils: TokenUtils) { }
+    constructor(private readonly tokenUtils: TokenUtils) {}
 
     async use(req: Request, res: Response, next: NextFunction) {
 
@@ -28,6 +30,8 @@ export class AuthContextMiddleware implements NestMiddleware {
             '/api/v1/auth/signup',
             '/api/v1/auth/verify-email',
             '/api/v1/auth/resend-otp',
+            '/api/v1/auth/signin',
+            '/api/v1/auth/refresh',
         ];
 
         if (publicPaths.some((path) => req.originalUrl.includes(path))) {
@@ -44,9 +48,10 @@ export class AuthContextMiddleware implements NestMiddleware {
                 const payload = this.tokenUtils.verifyToken(token, secret);
 
                 req.userContext = {
-                    role: payload.status || 'UNVERIFIED_PATIENT',
+                    role: (payload.status as Role) || 'UNVERIFIED_PATIENT',
                     userId: payload.sub,
                     deviceId: deviceId || undefined,
+                    familyId: payload.familyId,
                 };
 
                 return next();
@@ -71,4 +76,4 @@ export class AuthContextMiddleware implements NestMiddleware {
             message: 'Authentication identity (Bearer token or x-device-id) is missing.',
         });
     }
-}
+}

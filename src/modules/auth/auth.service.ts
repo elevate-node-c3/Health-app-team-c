@@ -27,6 +27,14 @@ export class AuthService {
         return await this.signupUseCase.execute(dto, guestDeviceId);
     }
 
+    async signIn(dto: SignInDto, guestDeviceId?: string) {
+        return await this.signInUseCase.execute(dto, guestDeviceId);
+    }
+
+    async signin(dto: SignInDto, guestDeviceId?: string) {
+        return this.signIn(dto, guestDeviceId);
+    }
+
     async verifyEmail(dto: VerifyEmailDto) {
         return await this.verifyEmailUseCase.execute(dto);
     }
