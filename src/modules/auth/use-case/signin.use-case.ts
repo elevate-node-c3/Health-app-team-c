@@ -12,7 +12,7 @@ import { PromoteGuestUseCase } from './promote-guest.use-case';
 @Injectable()
 export class SigninUseCase {
     private readonly logger = new Logger(SigninUseCase.name);
-
+    // comment
     constructor(
         @InjectRepository(UserEntity)
         private readonly userRepository: Repository<UserEntity>,
