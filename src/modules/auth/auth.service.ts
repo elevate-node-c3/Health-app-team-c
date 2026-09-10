@@ -28,6 +28,10 @@ export class AuthService {
         return await this.signupUseCase.execute(dto, guestDeviceId);
     }
 
+    async signin(dto: SigninDto, guestDeviceId?: string) {
+        return await this.signinUseCase.execute(dto, guestDeviceId);
+    }
+
     async verifyEmail(dto: VerifyEmailDto) {
         return await this.verifyEmailUseCase.execute(dto);
     }
