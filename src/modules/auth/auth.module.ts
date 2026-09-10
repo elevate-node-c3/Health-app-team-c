@@ -11,13 +11,11 @@ import { SignupUseCase } from './use-case/signup.use-case';
 import { SigninUseCase } from './use-case/signin.use-case';
 import { VerifyEmailUseCase } from './use-case/verify-email.use-case';
 import { ResendOtpUseCase } from './use-case/resend-otp.use-case';
-import { PromoteGuestUseCase } from './use-case/promote-guest.use-case';
 import { JwtModule } from '@nestjs/jwt';
 import { MailService } from 'src/common/mail/mail.service';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { AuthTokenService } from './auth-token.service';
 import { AuthRabbitMQConsumer } from './consumers/auth-rabbitmq.consumer';
-import { GuestPromotionConsumer } from './consumers/guest-promotion.consumer';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
@@ -46,14 +44,12 @@ import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
         SigninUseCase,
         VerifyEmailUseCase,
         ResendOtpUseCase,
-        PromoteGuestUseCase,
         TokenUtils,
         MailService,
         AuthTokenService,
         AuthRabbitMQConsumer,
-        GuestPromotionConsumer,
         OutboxProcessorService,
     ],
-    exports: [AuthService, TokenUtils],
+    exports: [AuthService, AuthTokenService, TokenUtils],
 })
-export class AuthModule { }
+export class AuthModule {}

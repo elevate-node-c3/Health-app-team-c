@@ -1,13 +1,21 @@
-import { IsNotEmpty, IsString } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, Transform } from 'class-validator';
 
-export class SigninDto {
-    @IsNotEmpty({ message: 'Email or phone number cannot be blank.' })
-    @IsString()
-    @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-    identifier: string;
+export class SignInDto {
+    @IsEmail()
+    @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
+    email: string;
 
-    @IsNotEmpty({ message: 'Password cannot be blank.' })
     @IsString()
+    @IsNotEmpty()
+    @MinLength(8)
     password: string;
+
+    /**
+     * Optional human-readable label for this device/session.
+     * Example: "iPhone 14 Pro – Safari"
+     */
+    @IsOptional()
+    @IsString()
+    @MaxLength(100)
+    deviceLabel?: string;
 }
