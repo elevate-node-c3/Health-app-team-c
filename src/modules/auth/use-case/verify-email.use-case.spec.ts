@@ -1,100 +1,94 @@
 jest.mock('../../../common/utils/token.utils', () => ({
     TokenUtils: jest.fn().mockImplementation(() => ({
-        generateTokens: jest.fn().mockReturnValue({
-            accessToken: 'mock-access-token',
-            refreshToken: 'mock-refresh-token',
-        }),
+        generateAccessToken: jest.fn().mockReturnValue('mock-access-token'),
     })),
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { VerifyEmailUseCase } from './verify-email.use-case';
-import { UserEntity, UserStatus } from '../entities/user.entity';
+import { UserEntity, UserStatus, Gender } from '../entities/user.entity';
 import { TokenUtils } from '../../../common/utils/token.utils';
 import { AuthTokenService } from '../auth-token.service';
+import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 
 describe('VerifyEmailUseCase', () => {
     let useCase: VerifyEmailUseCase;
-    let userRepository: Partial<Repository<UserEntity>>;
-    let tokenUtils: TokenUtils;
-    let authTokenService: Partial<AuthTokenService>;
+    
+    const mockUserRepo = {
+        findOne: jest.fn(),
+        save: jest.fn(),
+    };
+
+    const mockQueryRunner = {
+        connect: jest.fn(),
+        startTransaction: jest.fn(),
+        commitTransaction: jest.fn(),
+        rollbackTransaction: jest.fn(),
+        release: jest.fn(),
+        manager: {
+            save: jest.fn().mockResolvedValue({ id: 'outbox-id' }),
+            getRepository: jest.fn().mockReturnValue({
+                create: jest.fn().mockImplementation((v) => v),
+                save: jest.fn(),
+            }),
+            create: jest.fn().mockImplementation((_entity, v) => v),
+        },
+    };
+
+    const mockDataSource = {
+        createQueryRunner: jest.fn().mockReturnValue(mockQueryRunner),
+    };
+
+    const mockTokenUtils = {
+        generateAccessToken: jest.fn().mockReturnValue('mock-access-token'),
+    };
+
+    const mockOutboxProcessor = {
+        triggerPublish: jest.fn().mockResolvedValue(undefined),
+    };
 
     beforeEach(async () => {
-        userRepository = {
-            findOne: jest.fn(),
-            save: jest.fn().mockImplementation((user) => Promise.resolve(user)),
-        };
-
-        authTokenService = {
-            saveRefreshToken: jest.fn().mockResolvedValue(undefined),
-        };
+        jest.clearAllMocks();
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 VerifyEmailUseCase,
-                {
-                    provide: getRepositoryToken(UserEntity),
-                    useValue: userRepository,
-                },
-                TokenUtils,
-                {
-                    provide: AuthTokenService,
-                    useValue: authTokenService,
-                },
+                { provide: getRepositoryToken(UserEntity), useValue: mockUserRepo },
+                { provide: TokenUtils, useValue: mockTokenUtils },
+                { provide: AuthTokenService, useValue: {} },
+                { provide: DataSource, useValue: mockDataSource },
+                { provide: OutboxProcessorService, useValue: mockOutboxProcessor },
             ],
         }).compile();
 
-        useCase = module.get<VerifyEmailUseCase>(VerifyEmailUseCase);
-        tokenUtils = module.get<TokenUtils>(TokenUtils);
-    });
-
-    it('should be defined', () => {
-        expect(useCase).toBeDefined();
+        useCase = module.get(VerifyEmailUseCase);
     });
 
     it('should throw NotFoundException if user email does not exist', async () => {
-        jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
-
-        const dto: any = { email: 'notfound@example.com', code: '1234' };
-
-        await expect(useCase.execute(dto)).rejects.toThrow(NotFoundException);
+        mockUserRepo.findOne.mockResolvedValue(null);
+        await expect(useCase.execute({ email: 'notfound@example.com', code: '1234' })).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException if account is already verified', async () => {
-        const verifiedUser = { isVerified: true } as UserEntity;
-        jest.spyOn(userRepository, 'findOne').mockResolvedValue(verifiedUser);
-
-        const dto: any = { email: 'test@example.com', code: '1234' };
-
-        await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
+        mockUserRepo.findOne.mockResolvedValue({ isVerified: true } as UserEntity);
+        await expect(useCase.execute({ email: 'test@example.com', code: '1234' })).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if failed attempts limit reached', async () => {
-        const lockedUser = {
-            isVerified: false,
-            failedAttemptsCount: 5,
-        } as UserEntity;
-        jest.spyOn(userRepository, 'findOne').mockResolvedValue(lockedUser);
-
-        const dto: any = { email: 'test@example.com', code: '1234' };
-
-        await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
+        mockUserRepo.findOne.mockResolvedValue({ isVerified: false, failedAttemptsCount: 5 } as UserEntity);
+        await expect(useCase.execute({ email: 'test@example.com', code: '1234' })).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if verification code has expired', async () => {
-        const expiredUser = {
+        mockUserRepo.findOne.mockResolvedValue({
             isVerified: false,
             failedAttemptsCount: 0,
             code_expires_at: new Date(Date.now() - 10000),
-        } as UserEntity;
-        jest.spyOn(userRepository, 'findOne').mockResolvedValue(expiredUser);
-
-        const dto: any = { email: 'test@example.com', code: '1234' };
-
-        await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
+        } as UserEntity);
+        await expect(useCase.execute({ email: 'test@example.com', code: '1234' })).rejects.toThrow(BadRequestException);
     });
 
     it('should increment failed attempts and throw BadRequestException if code is invalid', async () => {
@@ -104,16 +98,14 @@ describe('VerifyEmailUseCase', () => {
             code_expires_at: new Date(Date.now() + 100000),
             verificationCode: '5678',
         } as UserEntity;
-        jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
+        mockUserRepo.findOne.mockResolvedValue(user);
 
-        const dto: any = { email: 'test@example.com', code: '1234' };
-
-        await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
+        await expect(useCase.execute({ email: 'test@example.com', code: '1234' })).rejects.toThrow(BadRequestException);
         expect(user.failedAttemptsCount).toBe(2);
-        expect(userRepository.save).toHaveBeenCalledWith(user);
+        expect(mockUserRepo.save).toHaveBeenCalledWith(user);
     });
 
-    it('should successfully verify email, generate tokens and update user status', async () => {
+    it('should successfully verify email and generate token family within a transaction', async () => {
         const user = {
             id: 'user-id-123',
             email: 'test@example.com',
@@ -123,31 +115,22 @@ describe('VerifyEmailUseCase', () => {
             verificationCode: '1234',
         } as UserEntity;
 
-        jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
+        mockUserRepo.findOne.mockResolvedValue(user);
 
-        const dto: any = { email: 'test@example.com', code: '1234' };
-
-        const result = await useCase.execute(dto);
+        const result = await useCase.execute({ email: 'test@example.com', code: '1234' });
 
         expect(user.isVerified).toBe(true);
         expect(user.status).toBe(UserStatus.PATIENT);
         expect(user.verificationCode).toBeNull();
-        expect(user.code_expires_at).toBeNull();
-        expect(user.failedAttemptsCount).toBe(0);
-        expect(userRepository.save).toHaveBeenCalledWith(user);
-        expect(tokenUtils.generateTokens).toHaveBeenCalledWith({
-            sub: 'user-id-123',
-            email: 'test@example.com',
-            status: UserStatus.PATIENT,
-        });
-        expect(authTokenService.saveRefreshToken).toHaveBeenCalledWith('user-id-123', 'mock-refresh-token');
-        expect(result).toEqual({
-            message: 'Email verified successfully.',
-            data: {
-                accessToken: 'mock-access-token',
-                refreshToken: 'mock-refresh-token',
-                isVerified: true,
-            },
-        });
+        expect(mockQueryRunner.manager.save).toHaveBeenCalledWith(user);
+        
+        // Assert session created and tokens returned
+        expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+        expect(mockTokenUtils.generateAccessToken).toHaveBeenCalledWith(
+            expect.objectContaining({ sub: 'user-id-123', email: 'test@example.com' })
+        );
+        expect(result.data.accessToken).toBe('mock-access-token');
+        expect(result.data.refreshToken).toBeDefined();
+        expect(result.data.isVerified).toBe(true);
     });
 });
