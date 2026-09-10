@@ -13,6 +13,7 @@ import { UserStatus } from './entities/user.entity';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RefreshTokenUseCase } from './use-case/refresh-token.use-case';
 
 @Controller('auth')
 export class AuthController {
@@ -61,6 +62,8 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
         return await this.authService.resetPassword(resetPasswordDto);
+    }
+
     @Post('refresh')
     @HttpCode(HttpStatus.OK)
     async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
