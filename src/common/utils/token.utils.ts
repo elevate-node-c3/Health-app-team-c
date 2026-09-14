@@ -12,11 +12,12 @@ export interface AccessTokenPayload {
     jti: string;
     /** The refresh-token family this access token belongs to. Carried so sign-out needs no extra DB lookup. */
     familyId: string;
+    fullName: string;
 }
 
 @Injectable()
 export class TokenUtils {
-    constructor(private readonly jwtService: JwtService) {}
+    constructor(private readonly jwtService: JwtService) { }
 
     /**
      * Generates a cryptographically random 256-bit opaque token suitable for use
@@ -77,4 +78,4 @@ export class TokenUtils {
             throw new UnauthorizedException('Invalid or expired token');
         }
     }
-}
+}

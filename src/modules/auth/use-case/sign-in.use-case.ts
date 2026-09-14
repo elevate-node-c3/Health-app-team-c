@@ -23,7 +23,7 @@ export class SignInUseCase {
         private readonly dataSource: DataSource,
         private readonly outboxProcessorService: OutboxProcessorService,
         private readonly promoteGuestUseCase: PromoteGuestUseCase,
-    ) {}
+    ) { }
 
     async execute(dto: SignInDto, guestDeviceId?: string) {
         const rawIdentifier = ((dto as any).identifier ?? (dto as any).email ?? '').trim();
@@ -147,6 +147,7 @@ export class SignInUseCase {
             email: user.email,
             status: user.status,
             familyId,
+            fullName: user.fullName,
         });
 
         if (savedOutboxEventId) {

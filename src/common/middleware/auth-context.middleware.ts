@@ -10,6 +10,7 @@ export interface UserContext {
     deviceId?: string;
     /** The refresh-token family this session belongs to. Carried from the access JWT. */
     familyId?: string;
+    fullName?: string;
 }
 
 declare global {
@@ -22,7 +23,7 @@ declare global {
 
 @Injectable()
 export class AuthContextMiddleware implements NestMiddleware {
-    constructor(private readonly tokenUtils: TokenUtils) {}
+    constructor(private readonly tokenUtils: TokenUtils) { }
 
     async use(req: Request, res: Response, next: NextFunction) {
 
@@ -52,6 +53,7 @@ export class AuthContextMiddleware implements NestMiddleware {
                     userId: payload.sub,
                     deviceId: deviceId || undefined,
                     familyId: payload.familyId,
+                    fullName: payload.fullName,
                 };
 
                 return next();
@@ -76,4 +78,4 @@ export class AuthContextMiddleware implements NestMiddleware {
             message: 'Authentication identity (Bearer token or x-device-id) is missing.',
         });
     }
-}
+}

@@ -18,7 +18,7 @@ import { VerifyPasswordResetUseCase } from './use-case/verify-password-reset.use
 import { ResetPasswordUseCase } from './use-case/reset-password.use-case';
 import { PromoteGuestUseCase } from './use-case/promote-guest.use-case';
 import { JwtModule } from '@nestjs/jwt';
-import { MailService } from 'src/common/mail/mail.service';
+import { MailService } from '../../common/mail/mail.service';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { AuthTokenService } from './auth-token.service';
 import { AuthRabbitMQConsumer } from './consumers/auth-rabbitmq.consumer';
@@ -67,4 +67,4 @@ import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event
     ],
     exports: [AuthService, AuthTokenService, TokenUtils],
 })
-export class AuthModule {}
+export class AuthModule { }
