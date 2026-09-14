@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, Req, UseGuards } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -28,5 +28,26 @@ export class CatalogController {
             success: true,
             data,
         };
+    }
+
+    @Get('favorites')
+    @UseGuards(RolesGuard)
+    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
+    async listFavorites(@Req() req) {
+        return this.catalogService.listFavorites(req.userContext!.userId!);
+    }
+
+    @Post('favorites/:doctorId')
+    @UseGuards(RolesGuard)
+    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
+    async addFavorite(@Param('doctorId', ParseUUIDPipe) doctorId: string, @Req() req) {
+        return this.catalogService.addFavorite(req.userContext!.userId!, doctorId);
+    }
+
+    @Delete('favorites/:doctorId')
+    @UseGuards(RolesGuard)
+    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
+    async removeFavorite(@Param('doctorId', ParseUUIDPipe) doctorId: string, @Req() req) {
+        return this.catalogService.removeFavorite(req.userContext!.userId!, doctorId);
     }
 }
