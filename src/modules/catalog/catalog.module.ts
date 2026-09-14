@@ -17,6 +17,7 @@ import { CatalogSeeder } from 'src/database/seeds/catalog.seed';
 import { ArticleEntity } from './entities/article.entity';
 import { FavoriteEntity } from './entities/favorite.entity';
 import { NotificationEntity } from './entities/notification.entity';
+import { FavoriteNotificationConsumer } from './consumers/favorite-notification.consumer';
 
 
 @Module({
@@ -34,7 +35,7 @@ import { NotificationEntity } from './entities/notification.entity';
         ]),
     ],
     controllers: [CatalogController],
-    providers: [CatalogService, CatalogSeeder, GetHomeDashboardUseCase, AddFavoriteUseCase, RemoveFavoriteUseCase, ListFavoritesUseCase, OutboxProcessorService],
+    providers: [CatalogService, CatalogSeeder, GetHomeDashboardUseCase, AddFavoriteUseCase, RemoveFavoriteUseCase, ListFavoritesUseCase, FavoriteNotificationConsumer, OutboxProcessorService],
     exports: [CatalogSeeder],
 })
 export class CatalogModule { }

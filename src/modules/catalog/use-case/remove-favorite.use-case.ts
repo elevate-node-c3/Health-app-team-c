@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { FavoriteEntity } from '../entities/favorite.entity';
-import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
-import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
+import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
+import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 
 @Injectable()
 export class RemoveFavoriteUseCase {

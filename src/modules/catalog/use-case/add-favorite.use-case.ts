@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { DoctorEntity } from '../entities/doctor.entity';
 import { FavoriteEntity } from '../entities/favorite.entity';
-import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
-import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
+import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
+import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 
 @Injectable()
 export class AddFavoriteUseCase {
