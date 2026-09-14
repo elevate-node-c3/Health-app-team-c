@@ -20,7 +20,7 @@ export class VerifyEmailUseCase {
         private readonly authTokenService: AuthTokenService,
         private readonly dataSource: DataSource,
         private readonly outboxProcessorService: OutboxProcessorService,
-    ) {}
+    ) { }
 
     async execute(dto: VerifyEmailDto) {
         const normalizedEmail = dto.email.toLowerCase().trim();
@@ -117,6 +117,7 @@ export class VerifyEmailUseCase {
             email: user.email,
             status: user.status,
             familyId,
+            fullName: user.fullName,
         });
 
         if (savedOutboxEventId) {
@@ -137,4 +138,4 @@ export class VerifyEmailUseCase {
             },
         };
     }
-}
+}

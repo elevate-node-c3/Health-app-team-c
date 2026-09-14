@@ -19,6 +19,7 @@ export interface IssuedTokenFamily {
     rawRefreshToken: string;
     /** Family UUID that must be embedded in the access token. */
     familyId: string;
+    fullName?: string;
 }
 
 export interface RotationResult {
@@ -27,6 +28,7 @@ export interface RotationResult {
     userId: string;
     userStatus: string;
     userEmail: string;
+    fullName: string;
 }
 
 @Injectable()
@@ -37,7 +39,7 @@ export class AuthTokenService {
         @InjectRepository(RefreshTokenEntity)
         private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
         private readonly dataSource: DataSource,
-    ) {}
+    ) { }
 
     private hashToken(token: string): string {
         return crypto.createHash('sha256').update(token).digest('hex');
@@ -166,6 +168,7 @@ export class AuthTokenService {
                             userId: token.user.id,
                             userStatus: token.user.status,
                             userEmail: token.user.email,
+                            fullName: token.user.fullName,
                         };
                     }
                 }
@@ -216,6 +219,7 @@ export class AuthTokenService {
                 userId: token.user.id,
                 userStatus: token.user.status,
                 userEmail: token.user.email,
+                fullName: token.user.fullName,
             };
         });
     }
@@ -264,4 +268,4 @@ export class AuthTokenService {
 
         return rows;
     }
-}
+}
