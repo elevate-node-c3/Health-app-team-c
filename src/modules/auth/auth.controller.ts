@@ -83,9 +83,6 @@ export class AuthController {
         return await this.authService.signOut(signOutDto, req.userContext!.userId!);
     }
 
-    /**
-     * Signs out every session for the authenticated user (all devices).
-     */
     @Post('signout-everywhere')
     @UseGuards(RolesGuard)
     @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
@@ -94,7 +91,6 @@ export class AuthController {
         return await this.authService.signOutEverywhere(req.userContext!.userId!);
     }
 
-    // ── Utility / test ───────────────────────────────────────────────────────
 
     @Get('me')
     @UseGuards(RolesGuard)
