@@ -10,6 +10,7 @@ import { OutboxProcessorService } from 'src/common/outbox/services/outbox-proces
 import { GetHomeDashboardUseCase } from './use-case/get-home-dashboard.use-case';
 import { AddFavoriteUseCase } from './use-case/add-favorite.use-case';
 import { RemoveFavoriteUseCase } from './use-case/remove-favorite.use-case';
+import { ListFavoritesUseCase } from './use-case/list-favorites.use-case';
 import { DoctorClinicEntity } from './entities/doctor-clinic.entity';
 import { ClinicEntity } from './entities/clinic.entity';
 import { CatalogSeeder } from 'src/database/seeds/catalog.seed';
@@ -33,7 +34,7 @@ import { NotificationEntity } from './entities/notification.entity';
         ]),
     ],
     controllers: [CatalogController],
-    providers: [CatalogService, CatalogSeeder, GetHomeDashboardUseCase, AddFavoriteUseCase, RemoveFavoriteUseCase, OutboxProcessorService],
+    providers: [CatalogService, CatalogSeeder, GetHomeDashboardUseCase, AddFavoriteUseCase, RemoveFavoriteUseCase, ListFavoritesUseCase, OutboxProcessorService],
     exports: [CatalogSeeder],
 })
 export class CatalogModule { }
