@@ -3,21 +3,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConsumeMessage } from 'amqplib';
-import { DoctorEntity } from '../entities/doctor.entity';
-import { NotificationEntity } from '../entities/notification.entity';
 import { ProcessedEventEntity } from '../../../common/outbox/entities/processed-event.entity';
+import { SendNotificationUseCase } from '../use-case/send-notification.use-case';
+
 
 @Injectable()
 export class FavoriteNotificationConsumer {
     private readonly logger = new Logger(FavoriteNotificationConsumer.name);
 
     constructor(
-        @InjectRepository(NotificationEntity)
-        private readonly notificationRepo: Repository<NotificationEntity>,
+        private readonly sendNotificationUseCase: SendNotificationUseCase,
         @InjectRepository(ProcessedEventEntity)
         private readonly processedRepo: Repository<ProcessedEventEntity>,
-        @InjectRepository(DoctorEntity)
-        private readonly doctorRepo: Repository<DoctorEntity>,
     ) { }
 
     @RabbitSubscribe({
@@ -41,18 +38,15 @@ export class FavoriteNotificationConsumer {
         }
 
         try {
-            const doctor = await this.doctorRepo.findOne({ where: { id: msg.doctorId } });
-            const name = msg.doctorName || doctor?.fullName || 'Doctor';
+            const name = msg.doctorName || 'Doctor';
 
-            await this.notificationRepo.save(
-                this.notificationRepo.create({
-                    userId: msg.userId,
-                    doctorId: msg.doctorId,
-                    type: 'FAVORITE_ADDED',
-                    title: 'Added to favorites',
-                    message: `Dr. ${name} has been added to favorite`,
-                }),
-            );
+            await this.sendNotificationUseCase.execute({
+                userId: msg.userId,
+                title: 'Added to favorites',
+                message: `Dr. ${name} has been added to favorite`,
+            });
+
+            this.logger.log(`Notification created for user ${msg.userId} via RabbitMQ`);
         } catch (err: any) {
             this.logger.error(`Favorite notification failed for ${msg.userId}/${msg.doctorId}: ${err.message}`);
         }
