@@ -7,6 +7,7 @@ import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.
 import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 import { FilterDoctorsDto } from '../dto/filter-doctors.dto';
 import { applyDoctorFilters } from '../utils/apply-doctor-filters';
+import { createBaseDoctorQuery } from '../utils/create-base-doctor-query';
 
 export type DoctorSort = 'recommended' | 'priceAsc' | 'priceDesc';
 
@@ -51,23 +52,7 @@ export class ListFilteredDoctorsUseCase {
       }
     }
 
-    const qb = this.doctorRepo
-      .createQueryBuilder('doctor')
-      .innerJoin('doctor.doctorClinics', 'dc', 'dc.isActive = :isActive', { isActive: true })
-      .innerJoin('dc.clinic', 'clinic')
-      .leftJoin('doctor.specialty', 'specialty')
-      .select([
-        'doctor.id AS id',
-        'doctor.fullName AS fullName',
-        'doctor.title AS title',
-        'doctor.gender AS gender',
-        'specialty.name AS specialtyName',
-        'COALESCE(MIN(dc.consultationFee), 0) AS consultationFee',
-        'doctor.averageRating AS averageRating',
-        'doctor.photoUrl AS photoUrl',
-      ])
-      .where('doctor.isVerified = :verified', { verified: true })
-      .groupBy('doctor.id, specialty.id');
+    const qb = createBaseDoctorQuery(this.doctorRepo);
 
     applyDoctorFilters(qb, filters);
 

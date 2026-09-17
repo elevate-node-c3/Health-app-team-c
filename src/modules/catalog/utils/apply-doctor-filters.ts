@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { SelectQueryBuilder } from 'typeorm';
-import { DoctorEntity } from '../entities/doctor.entity';
+import { DoctorEntity, DoctorGender } from '../entities/doctor.entity';
 import { AvailabilityFilter, FilterDoctorsDto } from '../dto/filter-doctors.dto';
 
 const CAIRO_TZ = 'Africa/Cairo';
@@ -32,7 +32,7 @@ export function applyDoctorFilters(
     });
   }
 
-  if (filters.genders && !isFullSet(filters.genders, ['Male', 'Female'] as const)) {
+  if (filters.genders && !isFullSet(filters.genders, [DoctorGender.MALE, DoctorGender.FEMALE])) {
     qb.andWhere('doctor.gender IN (:...genders)', { genders: filters.genders });
   }
 
