@@ -18,7 +18,7 @@ export class AddFavoriteUseCase {
     ) { }
 
     async execute(userId: string, doctorId: string) {
-        const doctor = await this.doctorRepo.findOne({ where: { id: doctorId } });
+        const doctor = await this.doctorRepo.findOne({ where: { id: doctorId, isVerified: true } });
         if (!doctor) {
             throw new NotFoundException('Doctor not found');
         }

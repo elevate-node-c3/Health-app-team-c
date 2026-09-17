@@ -49,6 +49,9 @@ export class DoctorEntity {
     @Column({ default: false })
     isVerified: boolean;
 
+    @Index()
+    @Column({ type: 'enum', enum: DoctorGender, nullable: true })
+    gender: DoctorGender;
     @Column({ default: true })
     isActive: boolean;
 

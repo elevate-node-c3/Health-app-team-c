@@ -3,6 +3,8 @@ import { GetHomeDashboardUseCase } from './use-case/get-home-dashboard.use-case'
 import { AddFavoriteUseCase } from './use-case/add-favorite.use-case';
 import { RemoveFavoriteUseCase } from './use-case/remove-favorite.use-case';
 import { ListFavoritesUseCase } from './use-case/list-favorites.use-case';
+import { DoctorSort, ListFilteredDoctorsUseCase } from './use-case/list-filtered-doctors.use-case';
+import { FilterDoctorsDto } from './dto/filter-doctors.dto';
 
 @Injectable()
 export class CatalogService {
@@ -11,6 +13,7 @@ export class CatalogService {
         private readonly addFavoriteUseCase: AddFavoriteUseCase,
         private readonly removeFavoriteUseCase: RemoveFavoriteUseCase,
         private readonly listFavoritesUseCase: ListFavoritesUseCase,
+        private readonly listFilteredDoctorsUseCase: ListFilteredDoctorsUseCase,
     ) { }
 
     async getHomeDashboard(user?: { id: string; fullName: string }, clientIp?: string) {
@@ -27,5 +30,9 @@ export class CatalogService {
 
     async listFavorites(userId: string) {
         return this.listFavoritesUseCase.execute(userId);
+    }
+
+    async listFilteredDoctors(filters: FilterDoctorsDto, opts?: { sort?: DoctorSort; page?: number; limit?: number; userId?: string }) {
+        return this.listFilteredDoctorsUseCase.execute({ filters, ...opts });
     }
 }
