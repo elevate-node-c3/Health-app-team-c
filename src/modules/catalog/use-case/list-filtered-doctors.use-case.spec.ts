@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ListFilteredDoctorsUseCase } from './list-filtered-doctors.use-case';
 import { DoctorEntity } from '../entities/doctor.entity';
 import { ClinicEntity } from '../entities/clinic.entity';
+import { FavoriteEntity } from '../entities/favorite.entity';
 import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
 
 jest.mock('../../../common/outbox/services/outbox-processor.service', () => ({
@@ -14,6 +15,7 @@ import { OutboxProcessorService } from '../../../common/outbox/services/outbox-p
 describe('ListFilteredDoctorsUseCase (CAT-5)', () => {
   let useCase: ListFilteredDoctorsUseCase;
   let clinicRepo: any;
+  let favoriteRepo: any;
   let outboxRepo: any;
   let outboxProcessor: any;
   let qb: any;
@@ -47,6 +49,7 @@ describe('ListFilteredDoctorsUseCase (CAT-5)', () => {
       query: jest.fn().mockResolvedValue([{ total: 2 }]),
     };
     clinicRepo = { findOne: jest.fn().mockResolvedValue({ id: 'clinic-1' }) };
+    favoriteRepo = { find: jest.fn().mockResolvedValue([]) };
     outboxRepo = {
       create: jest.fn((dto: any) => dto),
       save: jest.fn(() => Promise.resolve({ id: 'evt-1' })),
@@ -58,6 +61,7 @@ describe('ListFilteredDoctorsUseCase (CAT-5)', () => {
         ListFilteredDoctorsUseCase,
         { provide: getRepositoryToken(DoctorEntity), useValue: doctorRepo },
         { provide: getRepositoryToken(ClinicEntity), useValue: clinicRepo },
+        { provide: getRepositoryToken(FavoriteEntity), useValue: favoriteRepo },
         { provide: getRepositoryToken(OutboxEventEntity), useValue: outboxRepo },
         { provide: OutboxProcessorService, useValue: outboxProcessor },
       ],
@@ -86,6 +90,32 @@ describe('ListFilteredDoctorsUseCase (CAT-5)', () => {
   it('price ascending orders by displayed fee', async () => {
     await useCase.execute({ filters: {}, sort: 'priceAsc' });
     expect(qb.orderBy).toHaveBeenCalledWith('COALESCE(MIN(dc.consultationFee), 0)', 'ASC');
+  });
+
+  it('excludes inactive doctors', async () => {
+    await useCase.execute({ filters: {} });
+    expect(qb.andWhere).toHaveBeenCalledWith('doctor.isActive = :active', { active: true });
+  });
+
+  it('marks favourited doctors for signed-in users', async () => {
+    favoriteRepo.find.mockResolvedValueOnce([{ doctorId: 'doc-1' }]);
+    const res = await useCase.execute({ filters: {}, userId: 'user-1' });
+    expect(favoriteRepo.find).toHaveBeenCalledWith({ where: { userId: 'user-1' }, select: ['doctorId'] });
+    expect(res.data[0]).toMatchObject({ id: 'doc-1', isFavorite: true });
+    expect(res.data[1]).toMatchObject({ id: 'doc-2', isFavorite: false });
+  });
+
+  it('omits favourite state for guests', async () => {
+    const res = await useCase.execute({ filters: {} });
+    expect(favoriteRepo.find).not.toHaveBeenCalled();
+    expect(res.data[0]).not.toHaveProperty('isFavorite');
+  });
+
+  it('uses a fixed number of round trips regardless of page size', async () => {
+    await useCase.execute({ filters: { rating: 3 }, page: 2, limit: 20 });
+    expect(doctorRepo.query).toHaveBeenCalledTimes(1);
+    expect(qb.getRawMany).toHaveBeenCalledTimes(1);
+    expect(qb.offset).toHaveBeenCalledWith(20);
   });
 
   it('empty result is well-formed', async () => {

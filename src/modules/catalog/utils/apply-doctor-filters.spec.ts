@@ -72,4 +72,28 @@ describe('applyDoctorFilters (CAT-5)', () => {
       { availDays: [getCairoDayToken(new Date(lateNight.getTime() + 24 * 60 * 60 * 1000))] },
     );
   });
+
+  it('applies titles, places, specialty, governorate and city', () => {
+    const qb = mockQb();
+    applyDoctorFilters(qb, {
+      titles: ['Professor'] as any,
+      places: ['clinic'] as any,
+      specialtyId: '123e4567-e89b-12d3-a456-426614174000',
+      governorate: 'Cairo',
+      city: 'Maadi',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('doctor.title IN (:...titles)', { titles: ['Professor'] });
+    expect(qb.andWhere).toHaveBeenCalledWith('clinic.placeType IN (:...places)', { places: ['clinic'] });
+    expect(qb.andWhere).toHaveBeenCalledWith('doctor.specialtyId = :specialtyId', {
+      specialtyId: '123e4567-e89b-12d3-a456-426614174000',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('clinic.governorate = :governorate', { governorate: 'Cairo' });
+    expect(qb.andWhere).toHaveBeenCalledWith('clinic.city = :city', { city: 'Maadi' });
+  });
+
+  it('maxPrice-only of 1000 adds no upper bound', () => {
+    const qb = mockQb();
+    applyDoctorFilters(qb, { maxPrice: 1000 });
+    expect(qb.andHaving).not.toHaveBeenCalled();
+  });
 });

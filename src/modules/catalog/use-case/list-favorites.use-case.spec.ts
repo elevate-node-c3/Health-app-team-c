@@ -31,6 +31,7 @@ describe('ListFavoritesUseCase (CAT-7)', () => {
       leftJoin: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
       groupBy: jest.fn().mockReturnThis(),
       getRawMany: jest.fn().mockResolvedValue(returnRows),
     };

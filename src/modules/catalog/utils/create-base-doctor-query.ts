@@ -18,5 +18,6 @@ export function createBaseDoctorQuery(doctorRepo: Repository<DoctorEntity>): Sel
       'doctor.photoUrl AS photoUrl',
     ])
     .where('doctor.isVerified = :verified', { verified: true })
+    .andWhere('doctor.isActive = :active', { active: true })
     .groupBy('doctor.id, specialty.id');
 }

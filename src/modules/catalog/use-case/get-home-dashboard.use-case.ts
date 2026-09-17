@@ -64,6 +64,7 @@ export class GetHomeDashboardUseCase {
                     'doctor.averageRating AS averageRating',
                     'doctor.photoUrl AS photoUrl',
                 ])
+                .where('doctor.isActive = :active', { active: true })
                 .groupBy('doctor.id, specialty.id')
                 .orderBy('doctor.averageRating', 'DESC')
                 .limit(10)

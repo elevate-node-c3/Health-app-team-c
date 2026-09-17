@@ -9,6 +9,11 @@ export enum DoctorTitle {
     SPECIALIST = 'Specialist',
 }
 
+export enum DoctorGender {
+    MALE = 'Male',
+    FEMALE = 'Female',
+}
+
 @Index(['isActive', 'isVerified', 'averageRating'])
 @Entity('doctors')
 export class DoctorEntity {

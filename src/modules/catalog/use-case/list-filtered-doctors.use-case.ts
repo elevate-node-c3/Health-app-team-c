@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DoctorEntity } from '../entities/doctor.entity';
 import { ClinicEntity } from '../entities/clinic.entity';
+import { FavoriteEntity } from '../entities/favorite.entity';
 import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 import { FilterDoctorsDto } from '../dto/filter-doctors.dto';
@@ -28,6 +29,8 @@ export class ListFilteredDoctorsUseCase {
     private readonly doctorRepo: Repository<DoctorEntity>,
     @InjectRepository(ClinicEntity)
     private readonly clinicRepo: Repository<ClinicEntity>,
+    @InjectRepository(FavoriteEntity)
+    private readonly favoriteRepo: Repository<FavoriteEntity>,
     @InjectRepository(OutboxEventEntity)
     private readonly outboxRepo: Repository<OutboxEventEntity>,
     private readonly outboxProcessor: OutboxProcessorService,
@@ -77,6 +80,15 @@ export class ListFilteredDoctorsUseCase {
       .limit(limit)
       .getRawMany();
 
+    let favoriteIds: Set<string> | null = null;
+    if (input.userId) {
+      const userFavorites = await this.favoriteRepo.find({
+        where: { userId: input.userId },
+        select: ['doctorId'],
+      });
+      favoriteIds = new Set(userFavorites.map((f) => f.doctorId));
+    }
+
     const data = rows.map((r: any) => ({
       id: r.id,
       name: r.fullName ?? r.fullname,
@@ -86,6 +98,7 @@ export class ListFilteredDoctorsUseCase {
       averageRating: parseFloat(r.averageRating ?? r.averagerating) || 0,
       consultationFee: parseFloat(r.consultationFee ?? r.consultationfee) || 0,
       image: r.photoUrl ?? r.photourl,
+      ...(favoriteIds ? { isFavorite: favoriteIds.has(r.id) } : {}),
     }));
 
     this.persistFilterEvent({ ...filters }, sort, input.userId).catch((err) =>

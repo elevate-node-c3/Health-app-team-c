@@ -43,4 +43,9 @@ describe('FilterDoctorsDto (CAT-5)', () => {
     const errors = await errorsOf({ specialtyId: 'not-a-uuid' });
     expect(errors.length).toBeGreaterThan(0);
   });
+
+  it('rejects oversize filter arrays', async () => {
+    const errors = await errorsOf({ genders: 'Male,Female,Male,Female,Male,Female' });
+    expect(errors.length).toBeGreaterThan(0);
+  });
 });
