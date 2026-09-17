@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SpecialtyEntity } from '../../modules/catalog/entities/specialty.entity';
 import { ClinicEntity, PlaceType } from '../../modules/catalog/entities/clinic.entity';
-import { DoctorEntity, DoctorTitle } from '../../modules/catalog/entities/doctor.entity';
+import { DoctorEntity, DoctorGender, DoctorTitle } from '../../modules/catalog/entities/doctor.entity';
 import { DoctorClinicEntity } from '../../modules/catalog/entities/doctor-clinic.entity';
 import { RedisService } from 'src/common/redis/redis.service';
 import { CACHE_KEYS } from 'src/common/constants/cache-keys.constant';
@@ -70,6 +70,7 @@ export class CatalogSeeder {
         this.logger.log(`Seeded ${clinics.length} clinics successfully.`);
 
         const titles = [DoctorTitle.PROFESSOR, DoctorTitle.CONSULTANT, DoctorTitle.SPECIALIST];
+        const genders = [DoctorGender.MALE, DoctorGender.FEMALE];
         const targetDoctorCount = 50;
 
         const firstNames = ['Ahmed', 'Mohamed', 'Mahmoud', 'Khaled', 'Tarek', 'Amr', 'Youssef', 'Hassan', 'Ibrahim', 'Mostafa'];
@@ -89,10 +90,12 @@ export class CatalogSeeder {
                 const randomSpecialty = specialties[Math.floor(Math.random() * specialties.length)];
                 const randomTitle = titles[Math.floor(Math.random() * titles.length)];
                 const randomUniv = universities[Math.floor(Math.random() * universities.length)];
+                const randomGender = genders[Math.floor(Math.random() * genders.length)];
 
                 doctor = this.doctorRepo.create({
                     fullName,
                     title: randomTitle,
+                    gender: randomGender,
                     university: randomUniv,
                     subspecialties: [randomSpecialty.name + ' Sub-1', randomSpecialty.name + ' Sub-2'],
                     experienceYears: Math.floor(Math.random() * 20) + 3,
@@ -102,6 +105,9 @@ export class CatalogSeeder {
                     specialtyId: randomSpecialty.id,
                 });
 
+                doctor = await this.doctorRepo.save(doctor);
+            } else if (!doctor.gender) {
+                doctor.gender = genders[Math.floor(Math.random() * genders.length)];
                 doctor = await this.doctorRepo.save(doctor);
             }
 
