@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 @Entity('guest_searches')
+@Index(['deviceId', 'searchQuery'], { unique: true })
 export class GuestSearchEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
@@ -14,4 +15,7 @@ export class GuestSearchEntity {
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
+
+    @UpdateDateColumn({ name: 'updated_at' })
+    updatedAt: Date;
 }

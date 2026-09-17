@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { UserEntity } from './user.entity';
 
 @Entity('user_searches')
@@ -20,4 +20,7 @@ export class UserSearchEntity {
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
+
+    @UpdateDateColumn({ name: 'updated_at' })
+    updatedAt: Date;
 }
