@@ -3,6 +3,8 @@ import { GetHomeDashboardUseCase } from './use-case/get-home-dashboard.use-case'
 import { AddFavoriteUseCase } from './use-case/add-favorite.use-case';
 import { RemoveFavoriteUseCase } from './use-case/remove-favorite.use-case';
 import { ListFavoritesUseCase } from './use-case/list-favorites.use-case';
+import { SearchMapUseCase } from './use-case/search-map.use-case';
+import { SearchMapDto } from './dto/search-map.dto';
 import { DoctorSort, ListFilteredDoctorsUseCase } from './use-case/list-filtered-doctors.use-case';
 import { FilterDoctorsDto } from './dto/filter-doctors.dto';
 
@@ -13,6 +15,7 @@ export class CatalogService {
         private readonly addFavoriteUseCase: AddFavoriteUseCase,
         private readonly removeFavoriteUseCase: RemoveFavoriteUseCase,
         private readonly listFavoritesUseCase: ListFavoritesUseCase,
+        private readonly searchMapUseCase: SearchMapUseCase,
         private readonly listFilteredDoctorsUseCase: ListFilteredDoctorsUseCase,
     ) { }
 
@@ -32,6 +35,8 @@ export class CatalogService {
         return this.listFavoritesUseCase.execute(userId);
     }
 
+    async searchMap(dto: SearchMapDto, userId?: string) {
+        return this.searchMapUseCase.execute(dto, userId);
     async listFilteredDoctors(filters: FilterDoctorsDto, opts?: { sort?: DoctorSort; page?: number; limit?: number; userId?: string }) {
         return this.listFilteredDoctorsUseCase.execute({ filters, ...opts });
     }

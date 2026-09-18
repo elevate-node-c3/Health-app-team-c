@@ -11,8 +11,6 @@ import { OutboxModule } from './common/outbox/outbox.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './common/redis/redis.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
-import { NotificationModule } from './modules/notification/notification.module';
-import { SearchModule } from './modules/search/search.module';
 
 @Global()
 @Module({

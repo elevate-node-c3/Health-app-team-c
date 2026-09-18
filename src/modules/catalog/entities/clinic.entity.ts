@@ -8,6 +8,7 @@ export enum PlaceType {
 }
 
 @Index(['placeType', 'governorate', 'city'])
+@Index(['latitude', 'longitude'])
 @Entity('clinics')
 export class ClinicEntity {
     @PrimaryGeneratedColumn('uuid')

@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, Index } from 'typeorm';
 import { DoctorEntity } from './doctor.entity';
 
+@Index(['name'])
 @Index(['isActive', 'name'])
 @Entity('specialties')
 export class SpecialtyEntity {

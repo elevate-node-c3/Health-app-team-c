@@ -51,10 +51,10 @@ export class CatalogSeeder {
         this.logger.log(`Seeded ${specialties.length} specialties successfully.`);
 
         const clinicData = [
-            { name: 'Cairo Care Clinic', placeType: PlaceType.CLINIC, governorate: 'Cairo', city: 'Nasr City', address: '12 Street 9' },
-            { name: 'El Salam Hospital', placeType: PlaceType.HOSPITAL, governorate: 'Cairo', city: 'Maadi', address: 'Corniche El Nile' },
-            { name: 'Giza Medical Centre', placeType: PlaceType.CENTRE, governorate: 'Giza', city: 'Dokki', address: 'Mohy El Din Abou El Ezz' },
-            { name: 'Alexandria Health Hub', placeType: PlaceType.CLINIC, governorate: 'Alexandria', city: 'Smouha', address: 'Fouad Street' },
+            { name: 'Cairo Care Clinic', placeType: PlaceType.CLINIC, governorate: 'Cairo', city: 'Nasr City', address: '12 Street 9', latitude: 30.0626, longitude: 31.3406 },
+            { name: 'El Salam Hospital', placeType: PlaceType.HOSPITAL, governorate: 'Cairo', city: 'Maadi', address: 'Corniche El Nile', latitude: 29.9609, longitude: 31.2497 },
+            { name: 'Giza Medical Centre', placeType: PlaceType.CENTRE, governorate: 'Giza', city: 'Dokki', address: 'Mohy El Din Abou El Ezz', latitude: 30.0394, longitude: 31.2133 },
+            { name: 'Alexandria Health Hub', placeType: PlaceType.CLINIC, governorate: 'Alexandria', city: 'Smouha', address: 'Fouad Street', latitude: 31.2156, longitude: 29.9553 },
         ];
 
         const clinics: ClinicEntity[] = [];
@@ -70,7 +70,6 @@ export class CatalogSeeder {
         this.logger.log(`Seeded ${clinics.length} clinics successfully.`);
 
         const titles = [DoctorTitle.PROFESSOR, DoctorTitle.CONSULTANT, DoctorTitle.SPECIALIST];
-        const genders = [DoctorGender.MALE, DoctorGender.FEMALE];
         const targetDoctorCount = 50;
 
         const firstNames = ['Ahmed', 'Mohamed', 'Mahmoud', 'Khaled', 'Tarek', 'Amr', 'Youssef', 'Hassan', 'Ibrahim', 'Mostafa'];
@@ -90,12 +89,10 @@ export class CatalogSeeder {
                 const randomSpecialty = specialties[Math.floor(Math.random() * specialties.length)];
                 const randomTitle = titles[Math.floor(Math.random() * titles.length)];
                 const randomUniv = universities[Math.floor(Math.random() * universities.length)];
-                const randomGender = genders[Math.floor(Math.random() * genders.length)];
 
                 doctor = this.doctorRepo.create({
                     fullName,
                     title: randomTitle,
-                    gender: randomGender,
                     university: randomUniv,
                     subspecialties: [randomSpecialty.name + ' Sub-1', randomSpecialty.name + ' Sub-2'],
                     experienceYears: Math.floor(Math.random() * 20) + 3,
@@ -105,9 +102,6 @@ export class CatalogSeeder {
                     specialtyId: randomSpecialty.id,
                 });
 
-                doctor = await this.doctorRepo.save(doctor);
-            } else if (!doctor.gender) {
-                doctor.gender = genders[Math.floor(Math.random() * genders.length)];
                 doctor = await this.doctorRepo.save(doctor);
             }
 
