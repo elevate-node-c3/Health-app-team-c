@@ -18,7 +18,7 @@ export class RefreshTokenUseCase {
         private readonly authTokenService: AuthTokenService,
         private readonly dataSource: DataSource,
         private readonly outboxProcessorService: OutboxProcessorService,
-    ) {}
+    ) { }
 
     async execute(dto: RefreshTokenDto) {
         // rotateRefreshToken handles all cases:
@@ -40,6 +40,7 @@ export class RefreshTokenUseCase {
             email: rotation.userEmail,
             status: rotation.userStatus,
             familyId: rotation.familyId,
+            fullName: rotation.fullName
         });
 
         return {

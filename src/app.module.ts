@@ -9,10 +9,13 @@ import { AuthContextMiddleware } from './common/middleware/auth-context.middlewa
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { OutboxModule } from './common/outbox/outbox.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { RedisModule } from './common/redis/redis.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Global()
 @Module({
   imports: [
+    RedisModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -37,6 +40,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
     OutboxModule,
     AuthModule,
+    CatalogModule,
   ],
 
   exports: [RabbitMQModule],

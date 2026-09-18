@@ -19,6 +19,7 @@ export interface IssuedTokenFamily {
     rawRefreshToken: string;
     /** Family UUID that must be embedded in the access token. */
     familyId: string;
+    fullName?: string;
 }
 
 export interface RotationResult {
@@ -27,6 +28,7 @@ export interface RotationResult {
     userId: string;
     userStatus: string;
     userEmail: string;
+    fullName: string;
 }
 
 @Injectable()
@@ -37,7 +39,7 @@ export class AuthTokenService {
         @InjectRepository(RefreshTokenEntity)
         private readonly refreshTokenRepository: Repository<RefreshTokenEntity>,
         private readonly dataSource: DataSource,
-    ) {}
+    ) { }
 
     private hashToken(token: string): string {
         return crypto.createHash('sha256').update(token).digest('hex');
@@ -57,6 +59,21 @@ export class AuthTokenService {
      * Creates the first token in a new family (called on sign-in or email verification).
      * A new UUID is minted as the familyId; all future rotations share it.
      */
+    async saveRefreshToken(userId: string, token: string): Promise<void> {
+        const tokenHash = this.hashToken(token);
+        const expiresAt = this.expiresInDays(REFRESH_TOKEN_TTL_DAYS);
+        const entity = this.refreshTokenRepository.create({
+            familyId: crypto.randomUUID(),
+            userId,
+            tokenHash,
+            replacedByTokenHash: null,
+            revokedAt: null,
+            deviceLabel: null,
+            expiresAt,
+        });
+        await this.refreshTokenRepository.save(entity);
+    }
+
     async issueTokenFamily(
         userId: string,
         deviceLabel?: string,
@@ -151,6 +168,7 @@ export class AuthTokenService {
                             userId: token.user.id,
                             userStatus: token.user.status,
                             userEmail: token.user.email,
+                            fullName: token.user.fullName,
                         };
                     }
                 }
@@ -201,6 +219,7 @@ export class AuthTokenService {
                 userId: token.user.id,
                 userStatus: token.user.status,
                 userEmail: token.user.email,
+                fullName: token.user.fullName,
             };
         });
     }
@@ -249,4 +268,4 @@ export class AuthTokenService {
 
         return rows;
     }
-}
+}

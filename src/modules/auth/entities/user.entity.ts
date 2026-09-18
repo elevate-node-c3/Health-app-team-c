@@ -57,6 +57,24 @@ export class UserEntity {
     @Column({ name: 'code_expires_at', type: 'timestamp', nullable: true })
     code_expires_at: Date | null;
 
+    @Column({ name: 'password_reset_code', type: 'varchar', length: 10, nullable: true })
+    passwordResetCode: string | null;
+
+    @Column({ name: 'password_reset_code_expires_at', type: 'timestamp', nullable: true })
+    passwordResetCodeExpiresAt: Date | null;
+
+    @Column({ name: 'password_reset_token', type: 'varchar', length: 255, nullable: true })
+    passwordResetToken: string | null;
+
+    @Column({ name: 'password_reset_token_expires_at', type: 'timestamp', nullable: true })
+    passwordResetTokenExpiresAt: Date | null;
+
+    @Column({ name: 'password_reset_code_used_at', type: 'timestamp', nullable: true })
+    passwordResetCodeUsedAt: Date | null;
+
+    @Column({ name: 'password_reset_attempts_count', type: 'int', default: 0 })
+    passwordResetAttemptsCount: number;
+
     @Column({ name: 'failed_attempts_count', type: 'int', default: 0 })
     failedAttemptsCount: number;
 
