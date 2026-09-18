@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SpecialtyEntity } from '../../modules/catalog/entities/specialty.entity';
 import { ClinicEntity, PlaceType } from '../../modules/catalog/entities/clinic.entity';
-import { DoctorEntity, DoctorTitle } from '../../modules/catalog/entities/doctor.entity';
+import { DoctorEntity, DoctorGender, DoctorTitle } from '../../modules/catalog/entities/doctor.entity';
 import { DoctorClinicEntity } from '../../modules/catalog/entities/doctor-clinic.entity';
 import { RedisService } from 'src/common/redis/redis.service';
 import { CACHE_KEYS } from 'src/common/constants/cache-keys.constant';

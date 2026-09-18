@@ -4,6 +4,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { UserStatus } from '../auth/entities/user.entity';
 import { SearchMapDto } from './dto/search-map.dto';
+
 @Controller('catalog')
 export class CatalogController {
     constructor(private readonly catalogService: CatalogService) { }

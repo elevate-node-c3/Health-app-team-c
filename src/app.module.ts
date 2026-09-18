@@ -41,6 +41,8 @@ import { CatalogModule } from './modules/catalog/catalog.module';
     OutboxModule,
     AuthModule,
     CatalogModule,
+    NotificationModule,
+    SearchModule,
   ],
 
   exports: [RabbitMQModule],

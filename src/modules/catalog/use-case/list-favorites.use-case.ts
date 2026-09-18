@@ -39,6 +39,7 @@ export class ListFavoritesUseCase {
                 'doctor.isVerified AS isVerified',
             ])
             .where('doctor.id IN (:...doctorIds)', { doctorIds })
+            .andWhere('doctor.isActive = :active', { active: true })
             .groupBy('doctor.id, specialty.id')
             .getRawMany();
 

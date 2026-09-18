@@ -10,6 +10,12 @@ export enum DoctorTitle {
 }
 
 @Index(['isVerified', 'averageRating'])
+export enum DoctorGender {
+    MALE = 'Male',
+    FEMALE = 'Female',
+}
+
+@Index(['isActive', 'isVerified', 'averageRating'])
 @Entity('doctors')
 export class DoctorEntity {
     @PrimaryGeneratedColumn('uuid')
@@ -48,6 +54,12 @@ export class DoctorEntity {
 
     @Column({ default: false })
     isVerified: boolean;
+
+    @Index()
+    @Column({ type: 'enum', enum: DoctorGender, nullable: true })
+    gender: DoctorGender;
+    @Column({ default: true })
+    isActive: boolean;
 
     @Column({ type: 'uuid' })
     specialtyId: string;

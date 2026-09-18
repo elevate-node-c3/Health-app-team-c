@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToMany, Index } from 'typeor
 import { DoctorEntity } from './doctor.entity';
 
 @Index(['name'])
+@Index(['isActive', 'name'])
 @Entity('specialties')
 export class SpecialtyEntity {
     @PrimaryGeneratedColumn('uuid')
@@ -12,6 +13,9 @@ export class SpecialtyEntity {
 
     @Column({ nullable: true })
     description: string;
+
+    @Column({ default: true })
+    isActive: boolean;
 
     @OneToMany(() => DoctorEntity, (doctor) => doctor.specialty)
     doctors: DoctorEntity[];

@@ -95,8 +95,6 @@ export class AuthController {
         return await this.authService.signOutEverywhere(req.userContext!.userId!);
     }
 
-    // ── Utility / test ───────────────────────────────────────────────────────
-
     @Get('me')
     @UseGuards(RolesGuard)
     @Roles(UserStatus.GUEST, UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)

@@ -12,6 +12,7 @@ import { AddFavoriteUseCase } from './use-case/add-favorite.use-case';
 import { RemoveFavoriteUseCase } from './use-case/remove-favorite.use-case';
 import { ListFavoritesUseCase } from './use-case/list-favorites.use-case';
 import { SearchMapUseCase } from './use-case/search-map.use-case';
+import { ListFilteredDoctorsUseCase } from './use-case/list-filtered-doctors.use-case';
 import { DoctorClinicEntity } from './entities/doctor-clinic.entity';
 import { ClinicEntity } from './entities/clinic.entity';
 import { CatalogSeeder } from 'src/database/seeds/catalog.seed';
@@ -37,6 +38,10 @@ import { FavoriteNotificationConsumer } from './consumers/favorite-notification.
     ],
     controllers: [CatalogController],
     providers: [CatalogService, CatalogSeeder, GetHomeDashboardUseCase, AddFavoriteUseCase, RemoveFavoriteUseCase, ListFavoritesUseCase, SearchMapUseCase, FavoriteNotificationConsumer, OutboxProcessorService],
+        ]),
+    ],
+    controllers: [CatalogController],
+    providers: [CatalogService, CatalogSeeder, GetHomeDashboardUseCase, AddFavoriteUseCase, RemoveFavoriteUseCase, ListFavoritesUseCase, ListFilteredDoctorsUseCase, OutboxProcessorService],
     exports: [CatalogSeeder],
 })
 export class CatalogModule { }
