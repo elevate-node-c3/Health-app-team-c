@@ -51,10 +51,10 @@ export class CatalogSeeder {
         this.logger.log(`Seeded ${specialties.length} specialties successfully.`);
 
         const clinicData = [
-            { name: 'Cairo Care Clinic', placeType: PlaceType.CLINIC, governorate: 'Cairo', city: 'Nasr City', address: '12 Street 9' },
-            { name: 'El Salam Hospital', placeType: PlaceType.HOSPITAL, governorate: 'Cairo', city: 'Maadi', address: 'Corniche El Nile' },
-            { name: 'Giza Medical Centre', placeType: PlaceType.CENTRE, governorate: 'Giza', city: 'Dokki', address: 'Mohy El Din Abou El Ezz' },
-            { name: 'Alexandria Health Hub', placeType: PlaceType.CLINIC, governorate: 'Alexandria', city: 'Smouha', address: 'Fouad Street' },
+            { name: 'Cairo Care Clinic', placeType: PlaceType.CLINIC, governorate: 'Cairo', city: 'Nasr City', address: '12 Street 9', latitude: 30.0626, longitude: 31.3406 },
+            { name: 'El Salam Hospital', placeType: PlaceType.HOSPITAL, governorate: 'Cairo', city: 'Maadi', address: 'Corniche El Nile', latitude: 29.9609, longitude: 31.2497 },
+            { name: 'Giza Medical Centre', placeType: PlaceType.CENTRE, governorate: 'Giza', city: 'Dokki', address: 'Mohy El Din Abou El Ezz', latitude: 30.0394, longitude: 31.2133 },
+            { name: 'Alexandria Health Hub', placeType: PlaceType.CLINIC, governorate: 'Alexandria', city: 'Smouha', address: 'Fouad Street', latitude: 31.2156, longitude: 29.9553 },
         ];
 
         const clinics: ClinicEntity[] = [];

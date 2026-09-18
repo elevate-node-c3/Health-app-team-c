@@ -3,6 +3,8 @@ import { GetHomeDashboardUseCase } from './use-case/get-home-dashboard.use-case'
 import { AddFavoriteUseCase } from './use-case/add-favorite.use-case';
 import { RemoveFavoriteUseCase } from './use-case/remove-favorite.use-case';
 import { ListFavoritesUseCase } from './use-case/list-favorites.use-case';
+import { SearchMapUseCase } from './use-case/search-map.use-case';
+import { SearchMapDto } from './dto/search-map.dto';
 
 @Injectable()
 export class CatalogService {
@@ -11,6 +13,7 @@ export class CatalogService {
         private readonly addFavoriteUseCase: AddFavoriteUseCase,
         private readonly removeFavoriteUseCase: RemoveFavoriteUseCase,
         private readonly listFavoritesUseCase: ListFavoritesUseCase,
+        private readonly searchMapUseCase: SearchMapUseCase,
     ) { }
 
     async getHomeDashboard(user?: { id: string; fullName: string }, clientIp?: string) {
@@ -27,5 +30,9 @@ export class CatalogService {
 
     async listFavorites(userId: string) {
         return this.listFavoritesUseCase.execute(userId);
+    }
+
+    async searchMap(dto: SearchMapDto, userId?: string) {
+        return this.searchMapUseCase.execute(dto, userId);
     }
 }

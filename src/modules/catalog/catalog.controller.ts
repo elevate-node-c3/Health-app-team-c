@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, Req, UseGuards, Body, ValidationPipe } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { UserStatus } from '../auth/entities/user.entity';
-
+import { SearchMapDto } from './dto/search-map.dto';
 @Controller('catalog')
 export class CatalogController {
     constructor(private readonly catalogService: CatalogService) { }
@@ -27,6 +27,20 @@ export class CatalogController {
         return {
             success: true,
             data,
+        };
+    }
+
+    @Post('search/map')
+    @UseGuards(RolesGuard)
+    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN, UserStatus.GUEST)
+    async searchMap(@Body(new ValidationPipe({ transform: true })) dto: SearchMapDto, @Req() req) {
+        const userContext = req.userContext;
+        const userId = userContext && userContext.role !== 'GUEST' ? userContext.userId : undefined;
+        
+        const data = await this.catalogService.searchMap(dto, userId);
+        return {
+            success: true,
+            data
         };
     }
 
