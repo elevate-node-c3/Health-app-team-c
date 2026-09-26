@@ -9,13 +9,13 @@ export enum DoctorTitle {
     SPECIALIST = 'Specialist',
 }
 
-@Index(['isVerified', 'averageRating'])
 export enum DoctorGender {
     MALE = 'Male',
     FEMALE = 'Female',
 }
 
 @Index(['isActive', 'isVerified', 'averageRating'])
+@Index(['isVerified', 'averageRating'])
 @Entity('doctors')
 export class DoctorEntity {
     @PrimaryGeneratedColumn('uuid')
