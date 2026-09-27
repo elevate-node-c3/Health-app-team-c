@@ -1,68 +1,108 @@
-import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, Req, UseGuards, Body, ValidationPipe } from '@nestjs/common';
-import { CatalogService } from './catalog.service';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { UserStatus } from '../auth/entities/user.entity';
-import { SearchMapDto } from './dto/search-map.dto';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  ParseUUIDPipe,
+  Req,
+  UseGuards,
+  Body,
+  ValidationPipe,
+} from "@nestjs/common";
+import { CatalogService } from "./catalog.service";
+import { Roles } from "src/common/decorators/roles.decorator";
+import { RolesGuard } from "src/common/guards/roles.guard";
+import { UserStatus } from "../auth/entities/user.entity";
+import { SearchMapDto } from "./dto/search-map.dto";
 
-@Controller('catalog')
+@Controller("catalog")
 export class CatalogController {
-    constructor(private readonly catalogService: CatalogService) { }
+  constructor(private readonly catalogService: CatalogService) {}
 
-    @Get('home')
+  @Get("home")
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserStatus.UNVERIFIED_PATIENT,
+    UserStatus.PATIENT,
+    UserStatus.DOCTOR,
+    UserStatus.ADMIN,
+    UserStatus.GUEST,
+  )
+  async getHome(@Req() req) {
+    const userContext = req.userContext;
+    console.log("FULL REQ USER CONTEXT:", req.userContext);
+    const clientIp = req.ip || req.headers["x-forwarded-for"];
 
-    @UseGuards(RolesGuard)
-    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN, UserStatus.GUEST)
-    async getHome(@Req() req) {
-        const userContext = req.userContext;
-        console.log('FULL REQ USER CONTEXT:', req.userContext);
-        const clientIp = req.ip || req.headers['x-forwarded-for'];
-
-        const userInfo = userContext && userContext.role !== 'GUEST' ? {
+    const userInfo =
+      userContext && userContext.role !== "GUEST"
+        ? {
             id: userContext.userId,
             fullName: userContext.fullName,
-        } : undefined;
+          }
+        : undefined;
 
-        const data = await this.catalogService.getHomeDashboard(userInfo, clientIp);
+    const data = await this.catalogService.getHomeDashboard(userInfo, clientIp);
 
-        return {
-            success: true,
-            data,
-        };
-    }
+    return {
+      success: true,
+      data,
+    };
+  }
 
-    @Post('search/map')
-    @UseGuards(RolesGuard)
-    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN, UserStatus.GUEST)
-    async searchMap(@Body(new ValidationPipe({ transform: true })) dto: SearchMapDto, @Req() req) {
-        const userContext = req.userContext;
-        const userId = userContext && userContext.role !== 'GUEST' ? userContext.userId : undefined;
-        
-        const data = await this.catalogService.searchMap(dto, userId);
-        return {
-            success: true,
-            data
-        };
-    }
+  @Post("search/map")
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserStatus.UNVERIFIED_PATIENT,
+    UserStatus.PATIENT,
+    UserStatus.DOCTOR,
+    UserStatus.ADMIN,
+    UserStatus.GUEST,
+  )
+  async searchMap(
+    @Body(new ValidationPipe({ transform: true })) dto: SearchMapDto,
+    @Req() req,
+  ) {
+    const userContext = req.userContext;
+    const userId =
+      userContext && userContext.role !== "GUEST"
+        ? userContext.userId
+        : undefined;
 
-    @Get('favorites')
-    @UseGuards(RolesGuard)
-    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
-    async listFavorites(@Req() req) {
-        return this.catalogService.listFavorites(req.userContext!.userId!);
-    }
+    const data = await this.catalogService.searchMap(dto, userId);
+    return {
+      success: true,
+      data,
+    };
+  }
 
-    @Post('favorites/:doctorId')
-    @UseGuards(RolesGuard)
-    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
-    async addFavorite(@Param('doctorId', ParseUUIDPipe) doctorId: string, @Req() req) {
-        return this.catalogService.addFavorite(req.userContext!.userId!, doctorId);
-    }
+  @Get("favorites")
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.ADMIN)
+  async listFavorites(@Req() req) {
+    return this.catalogService.listFavorites(req.userContext!.userId!);
+  }
 
-    @Delete('favorites/:doctorId')
-    @UseGuards(RolesGuard)
-    @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.DOCTOR, UserStatus.ADMIN)
-    async removeFavorite(@Param('doctorId', ParseUUIDPipe) doctorId: string, @Req() req) {
-        return this.catalogService.removeFavorite(req.userContext!.userId!, doctorId);
-    }
+  @Post("favorites/:doctorId")
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.ADMIN)
+  async addFavorite(
+    @Param("doctorId", ParseUUIDPipe) doctorId: string,
+    @Req() req,
+  ) {
+    return this.catalogService.addFavorite(req.userContext!.userId!, doctorId);
+  }
+
+  @Delete("favorites/:doctorId")
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.UNVERIFIED_PATIENT, UserStatus.PATIENT, UserStatus.ADMIN)
+  async removeFavorite(
+    @Param("doctorId", ParseUUIDPipe) doctorId: string,
+    @Req() req,
+  ) {
+    return this.catalogService.removeFavorite(
+      req.userContext!.userId!,
+      doctorId,
+    );
+  }
 }
