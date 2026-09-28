@@ -62,6 +62,12 @@ export class DoctorEntity {
   @Column({ default: false })
   isVerified: boolean;
 
+  @Column({ type: 'text', nullable: true })
+  about: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  qa: Array<{ q: string; a: string }>;
+
   @Index()
   @Column({ type: "enum", enum: DoctorGender, nullable: true })
   gender: DoctorGender;

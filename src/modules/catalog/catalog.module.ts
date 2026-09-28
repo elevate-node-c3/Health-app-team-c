@@ -19,7 +19,11 @@ import { CatalogSeeder } from "src/database/seeds/catalog.seed";
 import { ArticleEntity } from "./entities/article.entity";
 import { FavoriteEntity } from "./entities/favorite.entity";
 import { NotificationEntity } from "./entities/notification.entity";
+import { ReviewEntity } from "./entities/review.entity";
+import { AppointmentEntity } from "./entities/appointment.entity";
 import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.consumer";
+import { GetDoctorProfileUseCase } from "./use-case/get-doctor-profile.use-case";
+import { GetDoctorAvailabilityUseCase } from "./use-case/get-doctor-availability.use-case";
 
 @Module({
   imports: [
@@ -33,6 +37,8 @@ import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.
       ArticleEntity,
       FavoriteEntity,
       NotificationEntity,
+      ReviewEntity,
+      AppointmentEntity,
     ]),
   ],
   controllers: [CatalogController],
@@ -47,6 +53,8 @@ import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.
     FavoriteNotificationConsumer,
     OutboxProcessorService,
     ListFilteredDoctorsUseCase,
+    GetDoctorProfileUseCase,
+    GetDoctorAvailabilityUseCase,
   ],
   exports: [CatalogSeeder],
 })
