@@ -10,6 +10,8 @@ import {
   ListFilteredDoctorsUseCase,
 } from "./use-case/list-filtered-doctors.use-case";
 import { FilterDoctorsDto } from "./dto/filter-doctors.dto";
+import { GetDoctorProfileUseCase } from "./use-case/get-doctor-profile.use-case";
+import { GetDoctorAvailabilityUseCase } from "./use-case/get-doctor-availability.use-case";
 
 @Injectable()
 export class CatalogService {
@@ -20,6 +22,8 @@ export class CatalogService {
     private readonly listFavoritesUseCase: ListFavoritesUseCase,
     private readonly searchMapUseCase: SearchMapUseCase,
     private readonly listFilteredDoctorsUseCase: ListFilteredDoctorsUseCase,
+    private readonly getDoctorProfileUseCase: GetDoctorProfileUseCase,
+    private readonly getDoctorAvailabilityUseCase: GetDoctorAvailabilityUseCase,
   ) {}
 
   async getHomeDashboard(
@@ -55,5 +59,13 @@ export class CatalogService {
     },
   ) {
     return this.listFilteredDoctorsUseCase.execute({ filters, ...opts });
+  }
+
+  async getDoctorProfile(doctorId: string, userId?: string) {
+    return this.getDoctorProfileUseCase.execute({ doctorId, userId });
+  }
+
+  async getDoctorAvailability(doctorId: string, clinicId: string, date: string) {
+    return this.getDoctorAvailabilityUseCase.execute({ doctorId, clinicId, date });
   }
 }
