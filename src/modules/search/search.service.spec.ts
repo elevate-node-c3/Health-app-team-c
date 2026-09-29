@@ -1,17 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
 import { SearchDoctorsAndSpecialtiesUseCase } from './use-case/search-doctors-and-specialties.use-case';
+import { SearchDoctorsUseCase } from './use-case/search-doctors.use-case';
 import { GetSearchSuggestionsUseCase } from './use-case/get-search-suggestions.use-case';
 import { ManageSearchHistoryUseCase } from './use-case/manage-search-history.use-case';
 
 describe('SearchService', () => {
     let service: SearchService;
     let searchUseCaseMock: any;
+    let searchDoctorsUseCaseMock: any;
     let suggestionsUseCaseMock: any;
     let historyUseCaseMock: any;
 
     beforeEach(async () => {
         searchUseCaseMock = { execute: jest.fn() };
+        searchDoctorsUseCaseMock = { execute: jest.fn() };
         suggestionsUseCaseMock = { execute: jest.fn() };
         historyUseCaseMock = {
             getHistory: jest.fn(),
@@ -23,6 +26,7 @@ describe('SearchService', () => {
             providers: [
                 SearchService,
                 { provide: SearchDoctorsAndSpecialtiesUseCase, useValue: searchUseCaseMock },
+                { provide: SearchDoctorsUseCase, useValue: searchDoctorsUseCaseMock },
                 { provide: GetSearchSuggestionsUseCase, useValue: suggestionsUseCaseMock },
                 { provide: ManageSearchHistoryUseCase, useValue: historyUseCaseMock },
             ],
@@ -39,6 +43,13 @@ describe('SearchService', () => {
         searchUseCaseMock.execute.mockResolvedValue({ success: true, data: {} });
         const result = await service.search({ q: 'cardio' }, { userId: 'user-1' });
         expect(searchUseCaseMock.execute).toHaveBeenCalledWith({ q: 'cardio' }, { userId: 'user-1' });
+        expect(result).toEqual({ success: true, data: {} });
+    });
+
+    it('should delegate searchDoctors to SearchDoctorsUseCase', async () => {
+        searchDoctorsUseCaseMock.execute.mockResolvedValue({ success: true, data: {} });
+        const result = await service.searchDoctors({ q: 'cardio' }, { userId: 'user-1' });
+        expect(searchDoctorsUseCaseMock.execute).toHaveBeenCalledWith({ q: 'cardio' }, { userId: 'user-1' });
         expect(result).toEqual({ success: true, data: {} });
     });
 

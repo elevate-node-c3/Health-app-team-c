@@ -13,6 +13,7 @@ import {
 import { Request } from 'express';
 import { SearchService } from './search.service';
 import { SearchQueryDto } from './dto/search-query.dto';
+import { SearchDoctorsDto } from './dto/search-doctors.dto';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserStatus } from '../auth/entities/user.entity';
@@ -42,6 +43,29 @@ export class SearchController {
         };
 
         return this.searchService.search(dto, identity);
+    }
+
+    @Get('doctors')
+    @UseGuards(RolesGuard)
+    @Roles(
+        UserStatus.GUEST,
+        UserStatus.UNVERIFIED_PATIENT,
+        UserStatus.PATIENT,
+        UserStatus.DOCTOR,
+        UserStatus.ADMIN,
+    )
+    @HttpCode(HttpStatus.OK)
+    async searchDoctors(@Query() dto: SearchDoctorsDto, @Req() req: Request) {
+        const userContext = req.userContext;
+        const clientIp = req.ip || (req.headers['x-forwarded-for'] as string);
+
+        const identity = {
+            userId: userContext && userContext.role !== 'GUEST' ? userContext.userId : undefined,
+            deviceId: userContext ? userContext.deviceId : undefined,
+            clientIp,
+        };
+
+        return this.searchService.searchDoctors(dto, identity);
     }
 
     @Get('suggestions')

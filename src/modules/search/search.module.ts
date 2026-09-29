@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
 import { SearchDoctorsAndSpecialtiesUseCase } from './use-case/search-doctors-and-specialties.use-case';
+import { SearchDoctorsUseCase } from './use-case/search-doctors.use-case';
 import { GetSearchSuggestionsUseCase } from './use-case/get-search-suggestions.use-case';
 import { ManageSearchHistoryUseCase } from './use-case/manage-search-history.use-case';
 import { SearchHistoryListener } from './listeners/search-history.listener';
@@ -25,6 +26,7 @@ import { GuestSearchEntity } from '../auth/entities/guest-search.entity';
     providers: [
         SearchService,
         SearchDoctorsAndSpecialtiesUseCase,
+        SearchDoctorsUseCase,
         GetSearchSuggestionsUseCase,
         ManageSearchHistoryUseCase,
         SearchHistoryListener,
@@ -33,6 +35,7 @@ import { GuestSearchEntity } from '../auth/entities/guest-search.entity';
     exports: [
         SearchService,
         SearchDoctorsAndSpecialtiesUseCase,
+        SearchDoctorsUseCase,
         GetSearchSuggestionsUseCase,
         ManageSearchHistoryUseCase,
     ],

@@ -39,6 +39,9 @@ export class ClinicEntity {
     @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
     longitude: number;
 
+    @Column({ default: true })
+    isActive: boolean;
+
     @OneToMany(() => DoctorClinicEntity, (doctorClinic) => doctorClinic.clinic)
     doctorClinics: DoctorClinicEntity[];
 }
