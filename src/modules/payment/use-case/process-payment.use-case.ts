@@ -6,20 +6,21 @@ import {
     InternalServerErrorException,
 } from '@nestjs/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessPaymentDto } from '../dto/process-payment.dto';
 import { StripeService } from '../services/stripe.service';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
-import { SlotHold } from '../entities/slot-hold.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { SavedCard } from '../entities/saved-card.entity';
-import { InjectRepository } from '@nestjs/typeorm';
 import { DoctorEntity } from 'src/modules/catalog/entities/doctor.entity';
+import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
 
 interface PreparedIntent {
     alreadySucceeded: boolean;
     response?: any;
-    hold?: SlotHold;
+    hold?: SlotHoldEntity;
     paymentTx?: PaymentTransaction;
+    doctorUnavailable?: boolean;
 }
 
 interface FailureContext {
@@ -27,6 +28,14 @@ interface FailureContext {
     cardId?: string;
     userId?: string;
 }
+
+const SUCCESS_RESPONSE = {
+    status: 'DONE',
+    message: 'Your appointment has been booked successfully',
+    details: {
+        instruction: 'We will remind you, Please arrive 15 minutes before the appointment.',
+    },
+};
 
 @Injectable()
 export class ProcessPaymentUseCase {
@@ -62,20 +71,25 @@ export class ProcessPaymentUseCase {
 
         const prepared = await this.preparePaymentIntent(userId, dto);
 
-
         if (prepared.alreadySucceeded) {
             return prepared.response;
         }
 
+        if (prepared.doctorUnavailable) {
+            throw new BadRequestException(
+                'This doctor is no longer available for appointments. Please choose another time or doctor.',
+            );
+        }
+
         const { hold, paymentTx } = prepared as {
-            hold: SlotHold;
+            hold: SlotHoldEntity;
             paymentTx: PaymentTransaction;
         };
 
-        let stripeResult;
+        let stripeResult: any;
         try {
             stripeResult = await this.stripeService.chargeCard({
-                amount: hold.frozenPrice,
+                amount: Number(hold.frozenFee),
                 currency: 'egp',
                 paymentMethodId: tokenToCharge,
                 idempotencyKey: paymentTx.idempotencyKey,
@@ -111,13 +125,17 @@ export class ProcessPaymentUseCase {
         try {
             return await this.finalizePaymentAndOutbox(
                 userId,
-                hold,
+                hold.id,
                 paymentTx.id,
                 stripeResult.transactionReference || '',
             );
         } catch (error) {
             await this.dataSource.getRepository(PaymentTransaction).update(paymentTx.id, {
                 status: PaymentStatus.REQUIRES_RECONCILIATION,
+                failureReason:
+                    error instanceof ConflictException
+                        ? 'Charged but hold no longer active'
+                        : 'Booking completion failed after charge',
             });
             throw new InternalServerErrorException('Booking completion failed.');
         }
@@ -128,7 +146,7 @@ export class ProcessPaymentUseCase {
         dto: ProcessPaymentDto,
     ): Promise<PreparedIntent> {
         return await this.dataSource.transaction(async (manager: EntityManager) => {
-            const holdRepo = manager.getRepository(SlotHold);
+            const holdRepo = manager.getRepository(SlotHoldEntity);
             const paymentRepo = manager.getRepository(PaymentTransaction);
             const doctorRepo = manager.getRepository(DoctorEntity);
 
@@ -141,42 +159,36 @@ export class ProcessPaymentUseCase {
                 .getOne();
 
             if (existingTx?.status === PaymentStatus.SUCCESS) {
-                return {
-                    alreadySucceeded: true,
-                    response: {
-                        status: 'DONE',
-                        message: 'Your appointment has been booked successfully',
-                        details: {
-                            instruction:
-                                'We will remind you, Please arrive 15 minutes before the appointment.',
-                        },
-                    },
-                };
+                return { alreadySucceeded: true, response: SUCCESS_RESPONSE };
             }
 
             const hold = await holdRepo
                 .createQueryBuilder('hold')
                 .setLock('pessimistic_write')
-                .where('hold.id = :holdId AND hold.userId = :userId', {
+                .where('hold.id = :holdId AND hold.patientId = :patientId', {
                     holdId: dto.holdId,
-                    userId,
+                    patientId: userId,
                 })
                 .getOne();
 
             if (!hold) throw new NotFoundException('Slot hold not found');
-            if (new Date() > hold.expiresAt) throw new BadRequestException('Hold expired');
+
+            if (
+                hold.status === SlotHoldStatus.CONSUMED &&
+                existingTx?.status !== PaymentStatus.PENDING
+            ) {
+                throw new ConflictException('Slot already booked');
+            }
+
+            const isExpired =
+                hold.status === SlotHoldStatus.EXPIRED ||
+                (hold.status === SlotHoldStatus.ACTIVE && new Date() > hold.expiresAt);
+            if (isExpired) throw new BadRequestException('Hold expired');
 
             const doctor = await doctorRepo.findOne({ where: { id: hold.doctorId } });
             if (!doctor || !doctor.isActive) {
-                await holdRepo.delete(hold.id);
-                throw new BadRequestException(
-                    'This doctor is no longer available for appointments. Please choose another time or doctor.',
-                );
-            }
-
-
-            if (hold.isConsumed && existingTx?.status !== PaymentStatus.PENDING) {
-                throw new ConflictException('Slot already booked');
+                await holdRepo.update(hold.id, { status: SlotHoldStatus.EXPIRED });
+                return { alreadySucceeded: false, doctorUnavailable: true };
             }
 
             let paymentTx = existingTx;
@@ -184,7 +196,7 @@ export class ProcessPaymentUseCase {
                 paymentTx = paymentRepo.create({
                     userId,
                     holdId: hold.id,
-                    amount: hold.frozenPrice,
+                    amount: hold.frozenFee,
                     status: PaymentStatus.PENDING,
                     idempotencyKey,
                 });
@@ -197,14 +209,14 @@ export class ProcessPaymentUseCase {
 
     private async finalizePaymentAndOutbox(
         userId: string,
-        hold: SlotHold,
+        holdId: string,
         paymentTxId: string,
         stripeRef: string,
     ) {
         return await this.dataSource.transaction(async (manager: EntityManager) => {
             const paymentRepo = manager.getRepository(PaymentTransaction);
             const outboxRepo = manager.getRepository(OutboxEventEntity);
-            const holdRepo = manager.getRepository(SlotHold);
+            const holdRepo = manager.getRepository(SlotHoldEntity);
 
             const paymentTx = await paymentRepo
                 .createQueryBuilder('tx')
@@ -214,13 +226,27 @@ export class ProcessPaymentUseCase {
 
             if (!paymentTx) throw new NotFoundException('Payment transaction not found');
 
+            const hold = await holdRepo
+                .createQueryBuilder('hold')
+                .setLock('pessimistic_write')
+                .where('hold.id = :holdId', { holdId })
+                .getOne();
+
+            if (!hold) throw new NotFoundException('Slot hold not found');
+
             if (paymentTx.status !== PaymentStatus.SUCCESS) {
+                if (
+                    hold.status !== SlotHoldStatus.ACTIVE &&
+                    hold.status !== SlotHoldStatus.CONSUMED
+                ) {
+                    throw new ConflictException('Hold no longer active after charge');
+                }
+
                 paymentTx.status = PaymentStatus.SUCCESS;
                 paymentTx.providerReference = stripeRef;
                 await paymentRepo.save(paymentTx);
 
-                hold.isConsumed = true;
-                await holdRepo.save(hold);
+                await holdRepo.update(hold.id, { status: SlotHoldStatus.CONSUMED });
 
                 await outboxRepo.save({
                     aggregateType: 'PAYMENT',
@@ -231,32 +257,31 @@ export class ProcessPaymentUseCase {
                         userId,
                         paymentTxId: paymentTx.id,
                         holdId: hold.id,
-                        amount: hold.frozenPrice,
+                        amount: Number(hold.frozenFee),
                         providerReference: stripeRef,
                     },
                 });
 
                 await outboxRepo.save({
                     aggregateType: 'APPOINTMENT',
-                    aggregateId: hold.slotId,
+                    aggregateId: hold.id,
                     exchange: 'appointment_exchange',
                     eventType: 'APPOINTMENT_BOOKED',
                     payload: {
                         userId,
+                        patientId: hold.patientId,
+                        holdId: hold.id,
                         doctorId: hold.doctorId,
-                        slotId: hold.slotId,
+                        clinicId: hold.clinicId,
+                        date: hold.date,
+                        startTime: hold.startTime,
+                        endTime: hold.endTime,
                         instructions: 'Please arrive 15 minutes before the appointment.',
                     },
                 });
             }
 
-            return {
-                status: 'DONE',
-                message: 'Your appointment has been booked successfully',
-                details: {
-                    instruction: 'We will remind you, Please arrive 15 minutes before the appointment.',
-                },
-            };
+            return SUCCESS_RESPONSE;
         });
     }
 
@@ -275,7 +300,10 @@ export class ProcessPaymentUseCase {
                 status: PaymentStatus.FAILED,
                 failureReason: reason,
             });
-            await manager.getRepository(SlotHold).delete(holdId);
+
+            await manager.getRepository(SlotHoldEntity).update(holdId, {
+                status: SlotHoldStatus.EXPIRED,
+            });
 
             await outboxRepo.save({
                 aggregateType: 'PAYMENT',
@@ -284,7 +312,6 @@ export class ProcessPaymentUseCase {
                 eventType: 'PAYMENT_FAILED',
                 payload: { paymentTxId, holdId, reason },
             });
-
 
             if (context?.isTokenInvalid && context.cardId && context.userId) {
                 const card = await cardRepo.findOne({

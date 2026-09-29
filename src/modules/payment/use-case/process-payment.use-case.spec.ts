@@ -12,7 +12,7 @@ import { ProcessPaymentUseCase } from './process-payment.use-case';
 import { StripeService } from '../services/stripe.service';
 import { SavedCard } from '../entities/saved-card.entity';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
-import { SlotHold } from '../entities/slot-hold.entity';
+import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { DoctorEntity } from 'src/modules/catalog/entities/doctor.entity';
 import { ProcessPaymentDto } from '../dto/process-payment.dto';
@@ -26,6 +26,7 @@ describe('ProcessPaymentUseCase', () => {
     const mockEntityManager = {
         getRepository: jest.fn(),
     } as unknown as jest.Mocked<EntityManager>;
+
     const mockPaymentRepo = {
         createQueryBuilder: jest.fn(),
         create: jest.fn(),
@@ -35,8 +36,7 @@ describe('ProcessPaymentUseCase', () => {
 
     const mockHoldRepo = {
         createQueryBuilder: jest.fn(),
-        save: jest.fn(),
-        delete: jest.fn(),
+        update: jest.fn(),
     };
 
     const mockDoctorRepo = {
@@ -110,7 +110,7 @@ describe('ProcessPaymentUseCase', () => {
 
         (mockEntityManager.getRepository as jest.Mock).mockImplementation((entity) => {
             if (entity === PaymentTransaction) return mockPaymentRepo;
-            if (entity === SlotHold) return mockHoldRepo;
+            if (entity === SlotHoldEntity) return mockHoldRepo;
             if (entity === DoctorEntity) return mockDoctorRepo;
             if (entity === OutboxEventEntity) return mockOutboxRepo;
             if (entity === SavedCard) return mockTxCardRepo;
@@ -181,64 +181,58 @@ describe('ProcessPaymentUseCase', () => {
             mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
             mockHoldQueryBuilder.getOne.mockResolvedValue({
                 id: 'hold-123',
-                expiresAt: new Date(Date.now() - 10000), // منتهي الصلاحية
+                status: SlotHoldStatus.EXPIRED,
+                expiresAt: new Date(Date.now() - 10000),
             });
 
             await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(BadRequestException);
         });
 
-        it('should delete hold and throw BadRequestException if doctor is inactive or not found', async () => {
+        it('should update hold status to EXPIRED and throw BadRequestException if doctor is inactive or not found', async () => {
             mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
             mockHoldQueryBuilder.getOne.mockResolvedValue({
                 id: 'hold-123',
                 doctorId: 'doc-1',
+                status: SlotHoldStatus.ACTIVE,
                 expiresAt: new Date(Date.now() + 10000),
             });
             mockDoctorRepo.findOne.mockResolvedValue(null);
 
             await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(BadRequestException);
-            expect(mockHoldRepo.delete).toHaveBeenCalledWith('hold-123');
+            expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-123', {
+                status: SlotHoldStatus.EXPIRED,
+            });
         });
 
-        it('should throw ConflictException if slot hold is already consumed', async () => {
+        it('should throw ConflictException if slot hold is already consumed and transaction is not PENDING', async () => {
             mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
             mockHoldQueryBuilder.getOne.mockResolvedValue({
                 id: 'hold-123',
                 doctorId: 'doc-1',
+                status: SlotHoldStatus.CONSUMED,
                 expiresAt: new Date(Date.now() + 10000),
-                isConsumed: true,
             });
-            mockDoctorRepo.findOne.mockResolvedValue({ id: 'doc-1', isActive: true });
 
             await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(ConflictException);
         });
     });
 
     describe('Stripe Charge & Finalization', () => {
-        let mockHold: {
-            id: string;
-            doctorId: string;
-            slotId: string;
-            frozenPrice: number;
-            expiresAt: Date;
-            isConsumed: boolean;
-        };
-
-        let mockTx: {
-            id: string;
-            idempotencyKey: string;
-            status: PaymentStatus;
-            providerReference?: string;
-        };
+        let mockHold: any;
+        let mockTx: any;
 
         beforeEach(() => {
             mockHold = {
                 id: 'hold-123',
                 doctorId: 'doc-1',
-                slotId: 'slot-1',
-                frozenPrice: 200,
+                patientId: mockUserId,
+                frozenFee: 200,
+                status: SlotHoldStatus.ACTIVE,
                 expiresAt: new Date(Date.now() + 10000),
-                isConsumed: false,
+                clinicId: 'clinic-1',
+                date: '2026-04-01',
+                startTime: '10:00',
+                endTime: '10:30',
             };
 
             mockTx = {
@@ -279,6 +273,7 @@ describe('ProcessPaymentUseCase', () => {
 
             mockTxCardRepo.findOne.mockResolvedValue({
                 id: 'card-abc',
+                userId: mockUserId,
                 last4Digits: '4242',
             });
 
@@ -290,7 +285,9 @@ describe('ProcessPaymentUseCase', () => {
                 status: PaymentStatus.FAILED,
                 failureReason: 'Card Declined',
             });
-            expect(mockHoldRepo.delete).toHaveBeenCalledWith('hold-123');
+            expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-123', {
+                status: SlotHoldStatus.EXPIRED,
+            });
 
             expect(mockTxCardRepo.softDelete).toHaveBeenCalledWith('card-abc');
             expect(mockOutboxRepo.save).toHaveBeenCalledWith(
@@ -327,11 +324,9 @@ describe('ProcessPaymentUseCase', () => {
                 }),
             );
 
-            expect(mockHoldRepo.save).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    isConsumed: true,
-                }),
-            );
+            expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-123', {
+                status: SlotHoldStatus.CONSUMED,
+            });
 
             expect(mockOutboxRepo.save).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -368,7 +363,6 @@ describe('ProcessPaymentUseCase', () => {
                 .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce(mockTx);
 
-
             mockPaymentRepo.save
                 .mockResolvedValueOnce(mockTx)
                 .mockImplementationOnce(() => {
@@ -381,6 +375,7 @@ describe('ProcessPaymentUseCase', () => {
 
             expect(dataSource.getRepository(PaymentTransaction).update).toHaveBeenCalledWith('tx-123', {
                 status: PaymentStatus.REQUIRES_RECONCILIATION,
+                failureReason: 'Booking completion failed after charge',
             });
         });
     });

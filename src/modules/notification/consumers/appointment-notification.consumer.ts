@@ -7,11 +7,17 @@ import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event
 import { AppointmentMailService } from 'src/common/mail/appointment-mail.service';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { UserEntity } from 'src/modules/auth/entities/user.entity';
+import { DoctorEntity } from 'src/modules/catalog/entities/doctor.entity';
+import { ClinicEntity } from 'src/modules/catalog/entities/clinic.entity';
 
 interface AppointmentBookedPayload {
     userId: string;
+    holdId: string;
     doctorId: string;
-    slotId: string;
+    clinicId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
     instructions: string;
 }
 
@@ -26,6 +32,10 @@ export class AppointmentEventsConsumer {
         private readonly processedEvents: Repository<ProcessedEventEntity>,
         @InjectRepository(UserEntity)
         private readonly userEntity: Repository<UserEntity>,
+        @InjectRepository(DoctorEntity)
+        private readonly doctorRepo: Repository<DoctorEntity>,
+        @InjectRepository(ClinicEntity)
+        private readonly clinicRepo: Repository<ClinicEntity>,
     ) { }
 
     @RabbitSubscribe({
@@ -46,7 +56,7 @@ export class AppointmentEventsConsumer {
         const eventId = amqpMsg.properties.headers?.['x-event-id'] as string | undefined;
 
         this.logger.log(
-            `[RabbitMQ Consumer] Received 'APPOINTMENT_BOOKED' event for slot: ${msg.slotId}`,
+            `[RabbitMQ Consumer] Received 'APPOINTMENT_BOOKED' event for hold: ${msg.holdId} (${msg.date} ${msg.startTime})`,
         );
 
         if (eventId) {
@@ -71,9 +81,20 @@ export class AppointmentEventsConsumer {
                 return new Nack(false);
             }
 
+            const [doctor, clinic] = await Promise.all([
+                this.doctorRepo.findOne({ where: { id: msg.doctorId } }),
+                this.clinicRepo.findOne({ where: { id: msg.clinicId } }),
+            ]);
+
+            if (!doctor) this.logger.warn(`Doctor ${msg.doctorId} not found for email.`);
+            if (!clinic) this.logger.warn(`Clinic ${msg.clinicId} not found for email.`);
+
             await this.appointmentMailService.sendBookingConfirmation(user.email, {
-                doctorId: msg.doctorId,
-                slotId: msg.slotId,
+                doctorName: doctor?.fullName,
+                clinicName: clinic?.name,
+                date: msg.date,
+                startTime: msg.startTime,
+                endTime: msg.endTime,
                 instructions: msg.instructions,
             });
 
@@ -103,7 +124,7 @@ export class AppointmentEventsConsumer {
             return;
         } catch (error: any) {
             this.logger.error(
-                `Failed to send appointment confirmation email for slot ${msg.slotId}: ${error.message}`,
+                `Failed to send appointment confirmation email for hold ${msg.holdId}: ${error.message}`,
                 error.stack,
             );
 
