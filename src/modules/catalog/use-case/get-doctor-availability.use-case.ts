@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { DoctorClinicEntity } from '../entities/doctor-clinic.entity';
 import { AppointmentEntity, AppointmentStatus } from '../entities/appointment.entity';
+import { SlotHoldEntity, SlotHoldStatus } from '../../booking/entities/slot-hold.entity';
 
 export interface GetDoctorAvailabilityInput {
     doctorId: string;
@@ -17,6 +18,8 @@ export class GetDoctorAvailabilityUseCase {
         private readonly doctorClinicRepo: Repository<DoctorClinicEntity>,
         @InjectRepository(AppointmentEntity)
         private readonly appointmentRepo: Repository<AppointmentEntity>,
+        @InjectRepository(SlotHoldEntity)
+        private readonly holdRepo: Repository<SlotHoldEntity>,
     ) { }
 
     async execute(input: GetDoctorAvailabilityInput) {
@@ -92,6 +95,21 @@ export class GetDoctorAvailabilityUseCase {
         const takenTimes = new Set(
             bookings.filter(b => b.status !== AppointmentStatus.CANCELLED).map(b => b.startTime.substring(0, 5))
         );
+
+        const holds = await this.holdRepo.find({
+            where: {
+                doctorId: input.doctorId,
+                clinicId: input.clinicId,
+                date: input.date,
+                status: SlotHoldStatus.ACTIVE,
+            },
+        });
+        const nowTs = Date.now();
+        for (const h of holds) {
+            if (new Date(h.expiresAt).getTime() > nowTs) {
+                takenTimes.add(h.startTime.substring(0, 5));
+            }
+        }
 
         const isToday = input.date === todayStr;
         const currentHours = now.getHours();

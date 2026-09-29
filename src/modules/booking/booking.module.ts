@@ -9,6 +9,7 @@ import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entit
 import { CreateHoldUseCase } from './use-case/create-hold.use-case';
 import { ExtendHoldUseCase } from './use-case/extend-hold.use-case';
 import { ReleaseExpiredHoldsUseCase } from './use-case/release-expired-holds.use-case';
+import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ReleaseExpiredHoldsUseCase } from './use-case/release-expired-holds.use
     CreateHoldUseCase,
     ExtendHoldUseCase,
     ReleaseExpiredHoldsUseCase,
+    OutboxProcessorService,
   ],
 })
 export class BookingModule {}
