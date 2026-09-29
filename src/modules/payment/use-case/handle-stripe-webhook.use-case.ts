@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import * as Stripe from 'stripe';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
-import { SlotHold } from '../entities/slot-hold.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
+import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
 
 @Injectable()
 export class HandleStripeWebhookUseCase {
@@ -29,7 +29,7 @@ export class HandleStripeWebhookUseCase {
 
         await this.dataSource.transaction(async (manager: EntityManager) => {
             const paymentRepo = manager.getRepository(PaymentTransaction);
-            const holdRepo = manager.getRepository(SlotHold);
+            const holdRepo = manager.getRepository(SlotHoldEntity);
             const outboxRepo = manager.getRepository(OutboxEventEntity);
 
             let query = paymentRepo.createQueryBuilder('tx').setLock('pessimistic_write');
@@ -52,6 +52,30 @@ export class HandleStripeWebhookUseCase {
                 return;
             }
 
+            // نقفل الـ hold ونقرر الأول، عشان منبعتش PAYMENT_SUCCEEDED وبعدين نكتشف إن الـ hold مش صالحة
+            const hold = await holdRepo
+                .createQueryBuilder('hold')
+                .setLock('pessimistic_write')
+                .where('hold.id = :holdId', { holdId: paymentTx.holdId })
+                .getOne();
+
+            const holdUsable =
+                !!hold &&
+                (hold.status === SlotHoldStatus.ACTIVE || hold.status === SlotHoldStatus.CONSUMED);
+
+            if (!holdUsable) {
+                this.logger.error(
+                    `Payment ${paymentTx.id} succeeded but hold ${paymentTx.holdId} is ${hold ? hold.status : 'missing'
+                    }. Needs manual reconciliation.`,
+                );
+                await paymentRepo.update(paymentTx.id, {
+                    status: PaymentStatus.REQUIRES_RECONCILIATION,
+                    providerReference: stripeRef,
+                    failureReason: 'Charged but hold not active',
+                });
+                return;
+            }
+
             paymentTx.status = PaymentStatus.SUCCESS;
             paymentTx.providerReference = stripeRef;
             await paymentRepo.save(paymentTx);
@@ -65,36 +89,34 @@ export class HandleStripeWebhookUseCase {
                     userId: paymentTx.userId,
                     paymentTxId: paymentTx.id,
                     holdId: paymentTx.holdId,
-                    amount: paymentTx.amount,
+                    amount: Number(paymentTx.amount),
                     providerReference: stripeRef,
                 },
             });
 
-            const hold = await holdRepo.findOne({ where: { id: paymentTx.holdId } });
-            if (hold && !hold.isConsumed) {
-                hold.isConsumed = true;
-                await holdRepo.save(hold);
+            if (hold!.status === SlotHoldStatus.ACTIVE) {
+                await holdRepo.update(hold!.id, { status: SlotHoldStatus.CONSUMED });
 
                 await outboxRepo.save({
                     aggregateType: 'APPOINTMENT',
-                    aggregateId: hold.slotId,
+                    aggregateId: hold!.id,
                     exchange: 'appointment_exchange',
                     eventType: 'APPOINTMENT_BOOKED',
                     payload: {
                         userId: paymentTx.userId,
-                        doctorId: hold.doctorId,
-                        slotId: hold.slotId,
+                        patientId: hold!.patientId,
+                        holdId: hold!.id,
+                        doctorId: hold!.doctorId,
+                        clinicId: hold!.clinicId,
+                        date: hold!.date,
+                        startTime: hold!.startTime,
+                        endTime: hold!.endTime,
                         instructions: 'Please arrive 15 minutes before the appointment.',
                     },
                 });
-                this.logger.log(`Appointment booked via Webhook for Slot: ${hold.slotId}`);
-            } else if (!hold) {
-                this.logger.error(
-                    `Payment ${paymentTx.id} succeeded but hold ${paymentTx.holdId} not found. Needs manual reconciliation.`,
+                this.logger.log(
+                    `Appointment booked via Webhook for hold ${hold!.id} (${hold!.date} ${hold!.startTime})`,
                 );
-                await manager.getRepository(PaymentTransaction).update(paymentTx.id, {
-                    status: PaymentStatus.REQUIRES_RECONCILIATION,
-                });
             }
         });
     }
@@ -105,7 +127,7 @@ export class HandleStripeWebhookUseCase {
 
         await this.dataSource.transaction(async (manager: EntityManager) => {
             const paymentRepo = manager.getRepository(PaymentTransaction);
-            const holdRepo = manager.getRepository(SlotHold);
+            const holdRepo = manager.getRepository(SlotHoldEntity);
             const outboxRepo = manager.getRepository(OutboxEventEntity);
 
             let query = paymentRepo.createQueryBuilder('tx').setLock('pessimistic_write');
@@ -123,8 +145,13 @@ export class HandleStripeWebhookUseCase {
             paymentTx.failureReason = paymentIntent.last_payment_error?.message || 'Payment failed';
             await paymentRepo.save(paymentTx);
 
-            await holdRepo.delete(paymentTx.holdId);
-            this.logger.log(`Hold released via Webhook for Hold ID: ${paymentTx.holdId}`);
+            const released = await holdRepo.update(
+                { id: paymentTx.holdId, status: SlotHoldStatus.ACTIVE },
+                { status: SlotHoldStatus.EXPIRED },
+            );
+            if (released.affected) {
+                this.logger.log(`Hold released via Webhook for Hold ID: ${paymentTx.holdId}`);
+            }
 
             await outboxRepo.save({
                 aggregateType: 'PAYMENT',

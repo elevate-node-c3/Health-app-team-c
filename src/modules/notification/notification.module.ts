@@ -12,6 +12,8 @@ import { MarkAllAsReadUseCase } from './use-case/mark-all-as-read.use-case';
 import { AppointmentEventsConsumer } from './consumers/appointment-notification.consumer';
 import { UserEntity } from '../auth/entities/user.entity';
 import { AppointmentMailService } from 'src/common/mail/appointment-mail.service';
+import { ClinicEntity } from '../catalog/entities/clinic.entity';
+import { DoctorEntity } from '../catalog/entities/doctor.entity';
 
 const USE_CASES = [
     SendNotificationUseCase,
@@ -25,6 +27,8 @@ const USE_CASES = [
         NotificationEntity,
         ProcessedEventEntity,
         UserEntity,
+        DoctorEntity,
+        ClinicEntity,
     ])],
     controllers: [NotificationController],
     providers: [

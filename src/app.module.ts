@@ -13,11 +13,9 @@ import { RedisModule } from "./common/redis/redis.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { SearchModule } from "./modules/search/search.module";
-<<<<<<< HEAD
 import { PaymentModule } from "./modules/payment/payment.module";
-=======
 import { BookingModule } from "./modules/booking/booking.module";
->>>>>>> main
+import { AlertService } from "./common/outbox/services/alert.service";
 
 @Global()
 @Module({
@@ -55,12 +53,10 @@ import { BookingModule } from "./modules/booking/booking.module";
     CatalogModule,
     NotificationModule,
     SearchModule,
-<<<<<<< HEAD
     PaymentModule,
-=======
     BookingModule,
->>>>>>> main
   ],
+
 
   exports: [RabbitMQModule],
 })

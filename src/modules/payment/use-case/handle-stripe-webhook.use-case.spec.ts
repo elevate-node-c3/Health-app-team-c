@@ -4,7 +4,7 @@ import * as Stripe from 'stripe';
 
 import { HandleStripeWebhookUseCase } from './handle-stripe-webhook.use-case';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
-import { SlotHold } from '../entities/slot-hold.entity';
+import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 
 describe('HandleStripeWebhookUseCase', () => {
@@ -22,16 +22,21 @@ describe('HandleStripeWebhookUseCase', () => {
     };
 
     const mockHoldRepo = {
-        findOne: jest.fn(),
-        save: jest.fn(),
-        delete: jest.fn(),
+        createQueryBuilder: jest.fn(),
+        update: jest.fn(),
     };
 
     const mockOutboxRepo = {
         save: jest.fn(),
     };
 
-    const mockQueryBuilder = {
+    const mockPaymentQueryBuilder = {
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn(),
+    };
+
+    const mockHoldQueryBuilder = {
         setLock: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         getOne: jest.fn(),
@@ -55,11 +60,12 @@ describe('HandleStripeWebhookUseCase', () => {
 
         jest.clearAllMocks();
 
-        mockPaymentRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+        mockPaymentRepo.createQueryBuilder.mockReturnValue(mockPaymentQueryBuilder);
+        mockHoldRepo.createQueryBuilder.mockReturnValue(mockHoldQueryBuilder);
 
         (mockEntityManager.getRepository as jest.Mock).mockImplementation((entity) => {
             if (entity === PaymentTransaction) return mockPaymentRepo;
-            if (entity === SlotHold) return mockHoldRepo;
+            if (entity === SlotHoldEntity) return mockHoldRepo;
             if (entity === OutboxEventEntity) return mockOutboxRepo;
             return null;
         });
@@ -94,11 +100,11 @@ describe('HandleStripeWebhookUseCase', () => {
             } as Stripe.Event;
 
             it('should search transaction by idempotencyKey if present', async () => {
-                mockQueryBuilder.getOne.mockResolvedValue(null);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
 
                 await useCase.execute(event);
 
-                expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+                expect(mockPaymentQueryBuilder.where).toHaveBeenCalledWith(
                     'tx.idempotencyKey = :idempotencyKey',
                     { idempotencyKey: 'idemp-key-123' },
                 );
@@ -110,18 +116,18 @@ describe('HandleStripeWebhookUseCase', () => {
                     data: { object: { id: 'pi_12345', metadata: {} } },
                 } as Stripe.Event;
 
-                mockQueryBuilder.getOne.mockResolvedValue(null);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
 
                 await useCase.execute(eventWithoutIdempKey);
 
-                expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+                expect(mockPaymentQueryBuilder.where).toHaveBeenCalledWith(
                     'tx.providerReference = :stripeRef',
                     { stripeRef: 'pi_12345' },
                 );
             });
 
             it('should return without changes if transaction is not found', async () => {
-                mockQueryBuilder.getOne.mockResolvedValue(null);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
 
                 await useCase.execute(event);
 
@@ -130,7 +136,7 @@ describe('HandleStripeWebhookUseCase', () => {
             });
 
             it('should return without changes if transaction was already SUCCESS', async () => {
-                mockQueryBuilder.getOne.mockResolvedValue({
+                mockPaymentQueryBuilder.getOne.mockResolvedValue({
                     id: 'tx-1',
                     status: PaymentStatus.SUCCESS,
                 });
@@ -141,7 +147,7 @@ describe('HandleStripeWebhookUseCase', () => {
                 expect(mockOutboxRepo.save).not.toHaveBeenCalled();
             });
 
-            it('should process successful payment and book appointment when hold is found', async () => {
+            it('should process successful payment and book appointment when active hold is found', async () => {
                 const mockPaymentTx = {
                     id: 'tx-123',
                     userId: 'user-1',
@@ -152,13 +158,17 @@ describe('HandleStripeWebhookUseCase', () => {
 
                 const mockHold = {
                     id: 'hold-1',
-                    slotId: 'slot-99',
+                    patientId: 'patient-1',
                     doctorId: 'doc-88',
-                    isConsumed: false,
+                    clinicId: 'clinic-1',
+                    date: '2026-10-01',
+                    startTime: '10:00',
+                    endTime: '10:30',
+                    status: SlotHoldStatus.ACTIVE,
                 };
 
-                mockQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
-                mockHoldRepo.findOne.mockResolvedValue(mockHold);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
+                mockHoldQueryBuilder.getOne.mockResolvedValue(mockHold);
 
                 await useCase.execute(event);
 
@@ -177,22 +187,20 @@ describe('HandleStripeWebhookUseCase', () => {
                     }),
                 );
 
-                expect(mockHoldRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        isConsumed: true,
-                    }),
-                );
+                expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-1', {
+                    status: SlotHoldStatus.CONSUMED,
+                });
 
                 expect(mockOutboxRepo.save).toHaveBeenCalledWith(
                     expect.objectContaining({
                         aggregateType: 'APPOINTMENT',
-                        aggregateId: 'slot-99',
+                        aggregateId: 'hold-1',
                         eventType: 'APPOINTMENT_BOOKED',
                     }),
                 );
             });
 
-            it('should set status to REQUIRES_RECONCILIATION if hold is not found', async () => {
+            it('should set status to REQUIRES_RECONCILIATION if hold is missing or invalid', async () => {
                 const mockPaymentTx = {
                     id: 'tx-123',
                     userId: 'user-1',
@@ -201,18 +209,15 @@ describe('HandleStripeWebhookUseCase', () => {
                     status: PaymentStatus.PENDING,
                 };
 
-                mockQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
-                mockHoldRepo.findOne.mockResolvedValue(null);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
+                mockHoldQueryBuilder.getOne.mockResolvedValue(null);
 
                 await useCase.execute(event);
 
-                expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        status: PaymentStatus.SUCCESS,
-                    }),
-                );
                 expect(mockPaymentRepo.update).toHaveBeenCalledWith('tx-123', {
                     status: PaymentStatus.REQUIRES_RECONCILIATION,
+                    providerReference: 'pi_12345',
+                    failureReason: 'Charged but hold not active',
                 });
             });
         });
@@ -231,15 +236,16 @@ describe('HandleStripeWebhookUseCase', () => {
                 data: { object: mockPaymentIntentFailed },
             } as Stripe.Event;
 
-            it('should process failed payment and delete hold', async () => {
+            it('should process failed payment and expire hold', async () => {
                 const mockPaymentTx = {
                     id: 'tx-failed-123',
                     userId: 'user-1',
-                    holdId: 'hold-to-delete',
+                    holdId: 'hold-to-expire',
                     status: PaymentStatus.PENDING,
                 };
 
-                mockQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
+                mockHoldRepo.update.mockResolvedValue({ affected: 1, raw: [] });
 
                 await useCase.execute(event);
 
@@ -250,7 +256,10 @@ describe('HandleStripeWebhookUseCase', () => {
                     }),
                 );
 
-                expect(mockHoldRepo.delete).toHaveBeenCalledWith('hold-to-delete');
+                expect(mockHoldRepo.update).toHaveBeenCalledWith(
+                    { id: 'hold-to-expire', status: SlotHoldStatus.ACTIVE },
+                    { status: SlotHoldStatus.EXPIRED },
+                );
 
                 expect(mockOutboxRepo.save).toHaveBeenCalledWith(
                     expect.objectContaining({
@@ -265,7 +274,7 @@ describe('HandleStripeWebhookUseCase', () => {
             });
 
             it('should return without making changes if transaction is already SUCCESS', async () => {
-                mockQueryBuilder.getOne.mockResolvedValue({
+                mockPaymentQueryBuilder.getOne.mockResolvedValue({
                     id: 'tx-123',
                     status: PaymentStatus.SUCCESS,
                 });
@@ -273,7 +282,7 @@ describe('HandleStripeWebhookUseCase', () => {
                 await useCase.execute(event);
 
                 expect(mockPaymentRepo.save).not.toHaveBeenCalled();
-                expect(mockHoldRepo.delete).not.toHaveBeenCalled();
+                expect(mockHoldRepo.update).not.toHaveBeenCalled();
                 expect(mockOutboxRepo.save).not.toHaveBeenCalled();
             });
 
@@ -289,7 +298,8 @@ describe('HandleStripeWebhookUseCase', () => {
                     status: PaymentStatus.PENDING,
                 };
 
-                mockQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
+                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
+                mockHoldRepo.update.mockResolvedValue({ affected: 0, raw: [] });
 
                 await useCase.execute(eventWithoutError);
 

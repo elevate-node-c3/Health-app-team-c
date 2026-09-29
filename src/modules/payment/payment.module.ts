@@ -12,13 +12,13 @@ import { PaymentService } from './payment.service';
 import { ProcessPaymentUseCase } from './use-case/process-payment.use-case';
 import { HandleStripeWebhookUseCase } from './use-case/handle-stripe-webhook.use-case';
 import { StripeService } from './services/stripe.service';
-import { SlotHold } from './entities/slot-hold.entity';
 import { PaymentTransaction } from './entities/payment-transaction.entity';
 import { DoctorEntity } from '../catalog/entities/doctor.entity';
+import { SlotHoldEntity } from '../booking/entities/slot-hold.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([SavedCard, OutboxEventEntity, SlotHold, PaymentTransaction, DoctorEntity]),
+        TypeOrmModule.forFeature([SavedCard, OutboxEventEntity, SlotHoldEntity, PaymentTransaction, DoctorEntity]),
     ],
     controllers: [
         PaymentController,
