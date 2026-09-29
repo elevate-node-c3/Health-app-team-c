@@ -7,8 +7,11 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) =>
-        configService.get<TypeOrmModuleOptions>('database')!,
+      useFactory: (configService: ConfigService) => ({
+        ...configService.get<TypeOrmModuleOptions>('database')!,
+        autoLoadEntities: true,
+        synchronize: true,
+      }),
     }),
   ],
 })

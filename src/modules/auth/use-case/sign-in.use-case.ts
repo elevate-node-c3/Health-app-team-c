@@ -123,6 +123,8 @@ export class SignInUseCase {
             const outboxEvent = queryRunner.manager.create(OutboxEventEntity, {
                 aggregateType: 'SESSION',
                 eventType: 'session.created',
+                exchange: 'auth_exchange',
+                routingKey: 'session.created',
                 payload: {
                     userId: user.id,
                     familyId,

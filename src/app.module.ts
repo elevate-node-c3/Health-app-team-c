@@ -13,6 +13,7 @@ import { RedisModule } from "./common/redis/redis.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { SearchModule } from "./modules/search/search.module";
+import { PaymentModule } from "./modules/payment/payment.module";
 
 @Global()
 @Module({
@@ -33,6 +34,11 @@ import { SearchModule } from "./modules/search/search.module";
         exchanges: [
           { name: "auth_exchange", type: "topic" },
           { name: "auth_exchange.dlx", type: "topic" },
+          { name: 'appointment_exchange', type: 'topic' },
+          { name: 'appointment_exchange.dlx', type: 'topic' },
+          { name: 'payment_exchange', type: 'topic' },
+          { name: 'payment_exchange.dlx', type: 'topic' },
+
         ],
         uri: configService.get<string>("rabbitmq.uri")!,
         connectionInitOptions: { wait: true },
@@ -45,6 +51,7 @@ import { SearchModule } from "./modules/search/search.module";
     CatalogModule,
     NotificationModule,
     SearchModule,
+    PaymentModule,
   ],
 
   exports: [RabbitMQModule],

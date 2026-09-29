@@ -20,7 +20,7 @@ export class RequestPasswordResetUseCase {
     private readonly dataSource: DataSource,
     private readonly outboxProcessorService: OutboxProcessorService,
     private readonly mailService: MailService,
-  ) {}
+  ) { }
 
   async execute(dto: ForgotPasswordDto) {
     const normalizedEmail = dto.email?.toLowerCase().trim();
@@ -66,6 +66,7 @@ export class RequestPasswordResetUseCase {
       const outboxEvent = manager.create(OutboxEventEntity, {
         aggregateType: 'USER',
         eventType: 'user.password_reset_requested',
+        exchange: 'auth_exchange',
         payload: {
           userId: user.id,
           channel,

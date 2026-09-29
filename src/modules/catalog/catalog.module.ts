@@ -20,6 +20,7 @@ import { ArticleEntity } from "./entities/article.entity";
 import { FavoriteEntity } from "./entities/favorite.entity";
 import { NotificationEntity } from "./entities/notification.entity";
 import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.consumer";
+import { AlertService } from "src/common/outbox/services/alert.service";
 
 @Module({
   imports: [
@@ -47,7 +48,8 @@ import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.
     FavoriteNotificationConsumer,
     OutboxProcessorService,
     ListFilteredDoctorsUseCase,
+    AlertService,
   ],
   exports: [CatalogSeeder],
 })
-export class CatalogModule {}
+export class CatalogModule { }

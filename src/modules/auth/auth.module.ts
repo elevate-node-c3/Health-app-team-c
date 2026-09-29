@@ -27,6 +27,7 @@ import { SessionRabbitMQConsumer } from './consumers/session-rabbitmq.consumer';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
+import { AlertService } from 'src/common/outbox/services/alert.service';
 
 @Global()
 @Module({
@@ -64,6 +65,7 @@ import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event
         GuestPromotionConsumer,
         SessionRabbitMQConsumer,
         OutboxProcessorService,
+        AlertService,
     ],
     exports: [AuthService, AuthTokenService, TokenUtils],
 })

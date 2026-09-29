@@ -88,6 +88,7 @@ export class SignupUseCase {
             const outboxEvent = queryRunner.manager.create(OutboxEventEntity, {
                 aggregateType: 'USER',
                 eventType: 'user.registered',
+                exchange: 'auth_exchange',
                 payload: {
                     userId: user.id,
                     email: user.email,
@@ -103,6 +104,7 @@ export class SignupUseCase {
                 const guestPromotedEvent = queryRunner.manager.create(OutboxEventEntity, {
                     aggregateType: 'USER',
                     eventType: 'guest.promoted',
+                    exchange: 'auth_exchange',
                     payload: {
                         guestDeviceId: normalizedGuestDeviceId,
                         userId: user.id,

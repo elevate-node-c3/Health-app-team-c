@@ -30,7 +30,7 @@ export class AuthService {
         private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
         private readonly verifyPasswordResetUseCase: VerifyPasswordResetUseCase,
         private readonly resetPasswordUseCase: ResetPasswordUseCase,
-    ) {}
+    ) { }
 
     async signup(dto: SignupDto, guestDeviceId?: string) {
         return await this.signupUseCase.execute(dto, guestDeviceId);
