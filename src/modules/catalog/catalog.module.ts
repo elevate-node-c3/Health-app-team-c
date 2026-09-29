@@ -24,6 +24,7 @@ import { AppointmentEntity } from "./entities/appointment.entity";
 import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.consumer";
 import { GetDoctorProfileUseCase } from "./use-case/get-doctor-profile.use-case";
 import { GetDoctorAvailabilityUseCase } from "./use-case/get-doctor-availability.use-case";
+import { SlotHoldEntity } from "../booking/entities/slot-hold.entity";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { GetDoctorAvailabilityUseCase } from "./use-case/get-doctor-availability
       NotificationEntity,
       ReviewEntity,
       AppointmentEntity,
+      SlotHoldEntity,
     ]),
   ],
   controllers: [CatalogController],

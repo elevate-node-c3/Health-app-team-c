@@ -4,11 +4,13 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { GetDoctorAvailabilityUseCase } from './get-doctor-availability.use-case';
 import { DoctorClinicEntity } from '../entities/doctor-clinic.entity';
 import { AppointmentEntity, AppointmentStatus } from '../entities/appointment.entity';
+import { SlotHoldEntity } from '../../booking/entities/slot-hold.entity';
 
 describe('GetDoctorAvailabilityUseCase', () => {
     let useCase: GetDoctorAvailabilityUseCase;
     let doctorClinicRepoMock: any;
     let appointmentRepoMock: any;
+    let holdRepoMock: any;
 
     beforeEach(async () => {
         doctorClinicRepoMock = {
@@ -17,12 +19,16 @@ describe('GetDoctorAvailabilityUseCase', () => {
         appointmentRepoMock = {
             find: jest.fn(),
         };
+        holdRepoMock = {
+            find: jest.fn().mockResolvedValue([]),
+        };
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 GetDoctorAvailabilityUseCase,
                 { provide: getRepositoryToken(DoctorClinicEntity), useValue: doctorClinicRepoMock },
                 { provide: getRepositoryToken(AppointmentEntity), useValue: appointmentRepoMock },
+                { provide: getRepositoryToken(SlotHoldEntity), useValue: holdRepoMock },
             ],
         }).compile();
 
@@ -89,5 +95,36 @@ describe('GetDoctorAvailabilityUseCase', () => {
         
         const freeSlot = result.data.slots.Morning.find(s => s.time === '10:00');
         expect(freeSlot!.status).toBe('AVAILABLE');
+    });
+
+    it('should mark actively held slots as TAKEN', async () => {
+        const cairoTime = new Date().toLocaleString("en-US", { timeZone: "Africa/Cairo" });
+        const now = new Date(cairoTime);
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+        const dayTokens = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const targetDay = dayTokens[tomorrow.getDay()];
+
+        doctorClinicRepoMock.findOne.mockResolvedValue({
+            isActive: true,
+            consultationFee: 200,
+            doctor: { isActive: true, isVerified: true },
+            clinic: { isActive: true },
+            schedule: {
+                [targetDay]: { start: '10:00', end: '11:00' },
+                slotDuration: 30,
+            }
+        });
+
+        appointmentRepoMock.find.mockResolvedValue([]);
+        holdRepoMock.find.mockResolvedValue([
+            { startTime: '10:00:00', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+        ]);
+
+        const result = await useCase.execute({ doctorId: 'doc-1', clinicId: 'clinic-1', date: tomorrowStr });
+
+        const heldSlot = result.data.slots.Morning.find(s => s.time === '10:00');
+        expect(heldSlot!.status).toBe('TAKEN');
     });
 });
