@@ -46,6 +46,7 @@ export class ResendOtpUseCase {
                 aggregateType: 'User',
                 aggregateId: user.id.toString(),
                 eventType: 'user.registered',
+                exchange: 'auth_exchange',
                 payload: {
                     userId: user.id,
                     email: user.email,

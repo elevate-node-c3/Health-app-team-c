@@ -92,6 +92,7 @@ export class VerifyEmailUseCase {
             const outboxEvent = queryRunner.manager.create(OutboxEventEntity, {
                 aggregateType: 'SESSION',
                 eventType: 'session.created',
+                exchange: 'auth_exchange',
                 payload: {
                     userId: user.id,
                     familyId,

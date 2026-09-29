@@ -9,6 +9,7 @@ export class RolesGuard implements CanActivate {
     canActivate(context: ExecutionContext): boolean {
         const requiredRoles = this.reflector.get<Role[]>('roles', context.getHandler());
 
+
         if (!requiredRoles) {
             throw new ForbiddenException({
                 code: 'AUTH_DENIED_BY_DEFAULT',

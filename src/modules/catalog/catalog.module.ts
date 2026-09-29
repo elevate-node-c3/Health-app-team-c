@@ -22,6 +22,7 @@ import { NotificationEntity } from "./entities/notification.entity";
 import { ReviewEntity } from "./entities/review.entity";
 import { AppointmentEntity } from "./entities/appointment.entity";
 import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.consumer";
+import { AlertService } from "src/common/outbox/services/alert.service";
 import { GetDoctorProfileUseCase } from "./use-case/get-doctor-profile.use-case";
 import { GetDoctorAvailabilityUseCase } from "./use-case/get-doctor-availability.use-case";
 import { SlotHoldEntity } from "../booking/entities/slot-hold.entity";
@@ -55,9 +56,10 @@ import { SlotHoldEntity } from "../booking/entities/slot-hold.entity";
     FavoriteNotificationConsumer,
     OutboxProcessorService,
     ListFilteredDoctorsUseCase,
+    AlertService,
     GetDoctorProfileUseCase,
     GetDoctorAvailabilityUseCase,
   ],
   exports: [CatalogSeeder],
 })
-export class CatalogModule {}
+export class CatalogModule { }

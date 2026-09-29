@@ -9,6 +9,9 @@ import { NotificationEntity } from './entities/notification.entity';
 import { FavoriteNotificationConsumer } from './consumers/favorite-notification.consumer';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
 import { MarkAllAsReadUseCase } from './use-case/mark-all-as-read.use-case';
+import { AppointmentEventsConsumer } from './consumers/appointment-notification.consumer';
+import { UserEntity } from '../auth/entities/user.entity';
+import { AppointmentMailService } from 'src/common/mail/appointment-mail.service';
 
 const USE_CASES = [
     SendNotificationUseCase,
@@ -20,12 +23,15 @@ const USE_CASES = [
 @Module({
     imports: [TypeOrmModule.forFeature([
         NotificationEntity,
-        ProcessedEventEntity
+        ProcessedEventEntity,
+        UserEntity,
     ])],
     controllers: [NotificationController],
     providers: [
         NotificationService,
         FavoriteNotificationConsumer,
+        AppointmentEventsConsumer,
+        AppointmentMailService,
         ...USE_CASES
     ],
     exports: [
