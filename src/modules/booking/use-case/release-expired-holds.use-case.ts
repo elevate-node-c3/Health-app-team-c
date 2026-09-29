@@ -39,7 +39,7 @@ export class ReleaseExpiredHoldsUseCase {
         const fresh = await queryRunner.manager.findOne(SlotHoldEntity, {
           where: { id: hold.id, status: SlotHoldStatus.ACTIVE },
         });
-        if (!fresh || fresh.expiresAt.getTime() >= Date.now()) {
+        if (!fresh || new Date(fresh.expiresAt).getTime() >= Date.now()) {
           await queryRunner.rollbackTransaction();
           continue;
         }
@@ -57,19 +57,17 @@ export class ReleaseExpiredHoldsUseCase {
               doctorId: fresh.doctorId,
               clinicId: fresh.clinicId,
               date: fresh.date,
-              startTime:
-                typeof fresh.startTime === 'string'
-                  ? fresh.startTime.substring(0, 5)
-                  : fresh.startTime,
+              startTime: fresh.startTime.substring(0, 5),
             },
             isProcessed: false,
           }),
         );
 
         await queryRunner.commitTransaction();
-      } catch (err: any) {
+      } catch (err: unknown) {
         await queryRunner.rollbackTransaction();
-        this.logger.error(`Release hold ${hold.id} failed: ${err.message}`);
+        const reason = err instanceof Error ? err.message : 'unknown error';
+        this.logger.error(`Release hold ${hold.id} failed: ${reason}`);
       } finally {
         await queryRunner.release();
       }

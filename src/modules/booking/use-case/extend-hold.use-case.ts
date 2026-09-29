@@ -29,7 +29,7 @@ export class ExtendHoldUseCase {
 
     if (
       hold.status !== SlotHoldStatus.ACTIVE ||
-      hold.expiresAt.getTime() <= Date.now()
+      new Date(hold.expiresAt).getTime() <= Date.now()
     ) {
       throw new ConflictException({
         code: 'BOOKING_HOLD_EXPIRED',
@@ -44,7 +44,7 @@ export class ExtendHoldUseCase {
       });
     }
 
-    hold.expiresAt = new Date(hold.expiresAt.getTime() + 5 * 60 * 1000);
+    hold.expiresAt = new Date(new Date(hold.expiresAt).getTime() + 5 * 60 * 1000);
     hold.extendedOnce = true;
     await this.holdRepo.save(hold);
 
