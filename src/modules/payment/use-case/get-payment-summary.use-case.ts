@@ -1,80 +1,53 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import {
+    AppointmentEntity,
+    AppointmentStatus,
+    CancellationOutcome,
+} from 'src/modules/catalog/entities/appointment.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class GetPaymentSummaryUseCase {
     constructor(
+        @InjectRepository(AppointmentEntity)
+        private readonly appointmentRepository: Repository<AppointmentEntity>,
     ) { }
 
     async execute(userId: string, appointmentId: string) {
+        const appointment = await this.appointmentRepository.findOne({
+            where: { id: appointmentId, patientId: userId },
+            relations: ['doctor', 'clinic'],
+        });
 
-        // const appointment = await this.appointmentRepository.findOne({ where: { id: appointmentId, userId } });
-        // if (!appointment) throw new NotFoundException('Appointment not found');
+        if (!appointment) {
+            throw new NotFoundException(
+                'Appointment not found or does not belong to the user',
+            );
+        }
 
-        const bookingPrice = 200.0;
-        const discount = 0.0;
-        const fees = 0.0;
+        if (appointment.status !== AppointmentStatus.CANCELLED) {
+            throw new BadRequestException(
+                `Cannot generate payment summary for appointment with status: ${appointment.status}`,
+            );
+        }
 
-        const total = bookingPrice - discount + fees;
+        const basePrice = Number(appointment.snapshotConsultationFee || 0);
+
+        const isFreeCancellation =
+            appointment.cancellationOutcome === CancellationOutcome.FREE;
+        const totalAmount = isFreeCancellation ? 0 : basePrice;
 
         return {
-            bookingPrice: Number(bookingPrice.toFixed(2)),
-            discount: Number(discount.toFixed(2)),
-            fees: Number(fees.toFixed(2)),
-            total: Number(total.toFixed(2)),
+            appointmentId: appointment.id,
+            bookingPrice: Number(basePrice.toFixed(2)),
+            cancellationOutcome: appointment.cancellationOutcome,
+            total: Number(totalAmount.toFixed(2)),
             currency: 'EGP',
         };
     }
 }
-
-
-
-// import {
-//   Injectable,
-//   NotFoundException,
-//   BadRequestException,
-// } from '@nestjs/common';
-// import { InjectRepository } from '@nestjs/typeorm';
-// import { Repository } from 'typeorm';
-// import { Appointment } from '../entities/appointment.entity';
-
-// @Injectable()
-// export class GetPaymentSummaryUseCase {
-//   constructor(
-//     @InjectRepository(Appointment)
-//     private readonly appointmentRepository: Repository<Appointment>,
-//   ) {}
-
-//   async execute(userId: string, appointmentId: string) {
-//     const appointment = await this.appointmentRepository.findOne({
-//       where: { id: appointmentId, userId },
-//       relations: ['promocode'],
-//     });
-
-//     if (!appointment) {
-//       throw new NotFoundException(
-//         'Appointment not found or does not belong to the user',
-//       );
-//     }
-
-//     if (appointment.status !== 'PENDING_PAYMENT') {
-//       throw new BadRequestException(
-//         `Cannot generate payment summary for appointment with status: ${appointment.status}`,
-//       );
-//     }
-
-//     const bookingPrice = Number(appointment.holdPrice || appointment.price);
-//     const discount = Number(appointment.discountAmount || 0);
-//     const fees = Number(appointment.serviceFee || 0);
-//     const rawTotal = bookingPrice - discount + fees;
-//     const total = Math.max(0, rawTotal);
-
-//     return {
-//       appointmentId: appointment.id,
-//       bookingPrice: Number(bookingPrice.toFixed(2)),
-//       discount: Number(discount.toFixed(2)),
-//       fees: Number(fees.toFixed(2)),
-//       total: Number(total.toFixed(2)),
-//       currency: appointment.currency || 'EGP',
-//     };
-//   }
-// }

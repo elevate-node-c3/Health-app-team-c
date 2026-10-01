@@ -2,8 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import * as Stripe from 'stripe';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
-import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
+import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
+import { createAppointmentFromHold } from 'src/modules/booking/helpers/create-appointment-from-hold';
 
 @Injectable()
 export class HandleStripeWebhookUseCase {
@@ -52,7 +53,6 @@ export class HandleStripeWebhookUseCase {
                 return;
             }
 
-            // نقفل الـ hold ونقرر الأول، عشان منبعتش PAYMENT_SUCCEEDED وبعدين نكتشف إن الـ hold مش صالحة
             const hold = await holdRepo
                 .createQueryBuilder('hold')
                 .setLock('pessimistic_write')
@@ -97,12 +97,15 @@ export class HandleStripeWebhookUseCase {
             if (hold!.status === SlotHoldStatus.ACTIVE) {
                 await holdRepo.update(hold!.id, { status: SlotHoldStatus.CONSUMED });
 
+                const appointment = await createAppointmentFromHold(manager, hold!);
+
                 await outboxRepo.save({
                     aggregateType: 'APPOINTMENT',
-                    aggregateId: hold!.id,
+                    aggregateId: appointment.id,
                     exchange: 'appointment_exchange',
                     eventType: 'APPOINTMENT_BOOKED',
                     payload: {
+                        appointmentId: appointment.id,
                         userId: paymentTx.userId,
                         patientId: hold!.patientId,
                         holdId: hold!.id,
@@ -115,7 +118,7 @@ export class HandleStripeWebhookUseCase {
                     },
                 });
                 this.logger.log(
-                    `Appointment booked via Webhook for hold ${hold!.id} (${hold!.date} ${hold!.startTime})`,
+                    `Appointment ${appointment.id} booked via Webhook for hold ${hold!.id} (${hold!.date} ${hold!.startTime})`,
                 );
             }
         });

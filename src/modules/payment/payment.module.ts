@@ -15,10 +15,13 @@ import { StripeService } from './services/stripe.service';
 import { PaymentTransaction } from './entities/payment-transaction.entity';
 import { DoctorEntity } from '../catalog/entities/doctor.entity';
 import { SlotHoldEntity } from '../booking/entities/slot-hold.entity';
+import { RefundService } from './services/refund.service';
+import { RefundEntity } from './entities/refund.entity';
+import { AppointmentEntity } from '../catalog/entities/appointment.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([SavedCard, OutboxEventEntity, SlotHoldEntity, PaymentTransaction, DoctorEntity]),
+        TypeOrmModule.forFeature([SavedCard, OutboxEventEntity, SlotHoldEntity, PaymentTransaction, DoctorEntity, RefundEntity, AppointmentEntity]),
     ],
     controllers: [
         PaymentController,
@@ -33,6 +36,10 @@ import { SlotHoldEntity } from '../booking/entities/slot-hold.entity';
         ProcessPaymentUseCase,
         HandleStripeWebhookUseCase,
         StripeService,
+        RefundService
+    ],
+    exports: [
+        RefundService,
     ]
 })
 export class PaymentModule { }

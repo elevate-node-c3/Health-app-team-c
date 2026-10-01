@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Req, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Post, Body, Param, Req, UseGuards, ParseUUIDPipe, Get } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { CreateHoldDto } from './dto/create-hold.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -7,7 +7,7 @@ import { UserStatus } from '../auth/entities/user.entity';
 
 @Controller('booking')
 export class BookingController {
-  constructor(private readonly bookingService: BookingService) {}
+  constructor(private readonly bookingService: BookingService) { }
 
   @Post('holds')
   @UseGuards(RolesGuard)
@@ -22,4 +22,21 @@ export class BookingController {
   extendHold(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     return this.bookingService.extendHoldFor(req.userContext.userId, id);
   }
+
+
+
+  @Get('appointments/:id/cancellation-preview')
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.PATIENT)
+  previewCancellation(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.bookingService.previewCancellationFor(req.userContext.userId, id);
+  }
+
+  @Post('appointments/:id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.PATIENT)
+  cancelAppointment(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.bookingService.cancelAppointmentFor(req.userContext.userId, id);
+  }
+
 }
