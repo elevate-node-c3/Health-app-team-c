@@ -6,10 +6,15 @@ import { SlotHoldEntity } from './entities/slot-hold.entity';
 import { DoctorClinicEntity } from '../catalog/entities/doctor-clinic.entity';
 import { AppointmentEntity } from '../catalog/entities/appointment.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
+import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
+import { OutboxModule } from 'src/common/outbox/outbox.module';
 import { CreateHoldUseCase } from './use-case/create-hold.use-case';
 import { ExtendHoldUseCase } from './use-case/extend-hold.use-case';
 import { ReleaseExpiredHoldsUseCase } from './use-case/release-expired-holds.use-case';
-import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
+import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
+import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
+import { AppointmentCancelledConsumer } from './consumer/appiontment-cancle.consumer';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
@@ -18,7 +23,10 @@ import { OutboxProcessorService } from 'src/common/outbox/services/outbox-proces
       DoctorClinicEntity,
       AppointmentEntity,
       OutboxEventEntity,
+      ProcessedEventEntity,
     ]),
+    OutboxModule,
+    PaymentModule,
   ],
   controllers: [BookingController],
   providers: [
@@ -26,7 +34,9 @@ import { OutboxProcessorService } from 'src/common/outbox/services/outbox-proces
     CreateHoldUseCase,
     ExtendHoldUseCase,
     ReleaseExpiredHoldsUseCase,
-    OutboxProcessorService,
+    PreviewCancellationUseCase,
+    CancelAppointmentUseCase,
+    AppointmentCancelledConsumer,
   ],
 })
-export class BookingModule {}
+export class BookingModule { }

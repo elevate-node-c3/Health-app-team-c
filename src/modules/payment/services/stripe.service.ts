@@ -58,6 +58,65 @@ export class StripeService {
         }
     }
 
+    async refundPayment(params: {
+        paymentIntentId: string;
+        amount: number;
+        idempotencyKey: string;
+    }): Promise<{
+        isSuccess: boolean;
+        refundId: string | null;
+        status: string;
+        failureReason: string | null;
+    }> {
+        try {
+            const refund = await this.stripe.refunds.create(
+                {
+                    payment_intent: params.paymentIntentId,
+                    amount: Math.round(params.amount * 100),
+                    metadata: { idempotencyKey: params.idempotencyKey },
+                },
+                { idempotencyKey: params.idempotencyKey },
+            );
+
+            const failed = refund.status === 'failed' || refund.status === 'canceled';
+            return {
+                isSuccess: !failed,
+                refundId: refund.id,
+                status: refund.status ?? 'unknown',
+                failureReason: failed ? refund.failure_reason ?? 'Refund failed' : null,
+            };
+        } catch (error: any) {
+            this.logger.error(`Stripe Refund Error: ${error.type} - ${error.code} - ${error.message}`);
+
+            if (error.code === 'charge_already_refunded') {
+                const existing = await this.stripe.refunds.list({
+                    payment_intent: params.paymentIntentId,
+                    limit: 1,
+                });
+                const found = existing.data[0];
+                if (found) {
+                    return {
+                        isSuccess: true,
+                        refundId: found.id,
+                        status: found.status ?? 'unknown',
+                        failureReason: null,
+                    };
+                }
+            }
+
+            if (error.type === 'StripeInvalidRequestError' || error.type === 'StripeCardError') {
+                return {
+                    isSuccess: false,
+                    refundId: null,
+                    status: 'failed',
+                    failureReason: error.message || 'Refund rejected by payment provider',
+                };
+            }
+
+            throw error;
+        }
+    }
+
     constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_mock';
         try {

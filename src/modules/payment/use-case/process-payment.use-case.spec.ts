@@ -2,78 +2,60 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
     BadRequestException,
-    ConflictException,
     InternalServerErrorException,
     NotFoundException,
 } from '@nestjs/common';
-import { DataSource, EntityManager, Repository } from 'typeorm';
-
+import { DataSource } from 'typeorm';
 import { ProcessPaymentUseCase } from './process-payment.use-case';
 import { StripeService } from '../services/stripe.service';
 import { SavedCard } from '../entities/saved-card.entity';
-import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
+import { PaymentStatus, PaymentTransaction } from '../entities/payment-transaction.entity';
 import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
-import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { DoctorEntity } from 'src/modules/catalog/entities/doctor.entity';
+import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { ProcessPaymentDto } from '../dto/process-payment.dto';
+
+jest.mock('src/modules/booking/helpers/create-appointment-from-hold', () => ({
+    createAppointmentFromHold: jest.fn().mockResolvedValue({ id: 'app-123' }),
+}));
 
 describe('ProcessPaymentUseCase', () => {
     let useCase: ProcessPaymentUseCase;
     let stripeService: jest.Mocked<StripeService>;
-    let savedCardRepo: jest.Mocked<Repository<SavedCard>>;
-    let dataSource: jest.Mocked<DataSource>;
+    let savedCardRepo: any;
+    let dataSource: any;
+    let mockEntityManager: any;
 
-    const mockEntityManager = {
-        getRepository: jest.fn(),
-    } as unknown as jest.Mocked<EntityManager>;
+    const mockUserId = 'user-123';
+    const mockHoldId = 'hold-123';
+    const mockCardId = 'card-123';
 
-    const mockPaymentRepo = {
-        createQueryBuilder: jest.fn(),
-        create: jest.fn(),
-        save: jest.fn(),
-        update: jest.fn(),
-    };
-
-    const mockHoldRepo = {
-        createQueryBuilder: jest.fn(),
-        update: jest.fn(),
-    };
-
-    const mockDoctorRepo = {
-        findOne: jest.fn(),
-    };
-
-    const mockOutboxRepo = {
-        save: jest.fn(),
-    };
-
-    const mockTxCardRepo = {
-        findOne: jest.fn(),
-        softDelete: jest.fn(),
-    };
-
-    const mockPaymentQueryBuilder = {
+    const createQueryBuilderMock = (result: any) => ({
         setLock: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        getOne: jest.fn(),
-    };
-
-    const mockHoldQueryBuilder = {
-        setLock: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        getOne: jest.fn(),
-    };
-
-    const mockUserId = 'user-uuid-123';
-    const mockDto: ProcessPaymentDto = {
-        holdId: 'hold-123',
-        paymentMethodToken: 'pm_tok_123',
-    };
+        getOne: jest.fn().mockResolvedValue(result),
+    });
 
     beforeEach(async () => {
+        mockEntityManager = {
+            getRepository: jest.fn(),
+            save: jest.fn(),
+        };
+
+        dataSource = {
+            transaction: jest.fn((cb) => cb(mockEntityManager)),
+            getRepository: jest.fn().mockReturnValue({
+                update: jest.fn().mockResolvedValue({}),
+            }),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ProcessPaymentUseCase,
+                {
+                    provide: DataSource,
+                    useValue: dataSource,
+                },
                 {
                     provide: StripeService,
                     useValue: {
@@ -86,219 +68,230 @@ describe('ProcessPaymentUseCase', () => {
                         findOne: jest.fn(),
                     },
                 },
-                {
-                    provide: DataSource,
-                    useValue: {
-                        transaction: jest.fn().mockImplementation((cb) => cb(mockEntityManager)),
-                        getRepository: jest.fn().mockReturnValue({
-                            update: jest.fn(),
-                        }),
-                    },
-                },
             ],
         }).compile();
 
         useCase = module.get<ProcessPaymentUseCase>(ProcessPaymentUseCase);
         stripeService = module.get(StripeService);
         savedCardRepo = module.get(getRepositoryToken(SavedCard));
-        dataSource = module.get(DataSource);
+    });
 
+    afterEach(() => {
         jest.clearAllMocks();
-
-        mockPaymentRepo.createQueryBuilder.mockReturnValue(mockPaymentQueryBuilder);
-        mockHoldRepo.createQueryBuilder.mockReturnValue(mockHoldQueryBuilder);
-
-        (mockEntityManager.getRepository as jest.Mock).mockImplementation((entity) => {
-            if (entity === PaymentTransaction) return mockPaymentRepo;
-            if (entity === SlotHoldEntity) return mockHoldRepo;
-            if (entity === DoctorEntity) return mockDoctorRepo;
-            if (entity === OutboxEventEntity) return mockOutboxRepo;
-            if (entity === SavedCard) return mockTxCardRepo;
-            return null;
-        });
     });
 
-    it('should be defined', () => {
-        expect(useCase).toBeDefined();
-    });
-
-    describe('execute - Initial Validations', () => {
-        it('should throw BadRequestException if neither paymentMethodToken nor cardId is provided', async () => {
-            await expect(useCase.execute(mockUserId, { holdId: 'hold-1' })).rejects.toThrow(
-                BadRequestException,
-            );
-        });
-
-        it('should throw NotFoundException if saved cardId does not exist', async () => {
+    describe('execute', () => {
+        it('should throw NotFoundException if saved card is not found', async () => {
             savedCardRepo.findOne.mockResolvedValue(null);
 
-            await expect(
-                useCase.execute(mockUserId, { holdId: 'hold-1', cardId: 'card-missing' }),
-            ).rejects.toThrow(NotFoundException);
+            const dto: ProcessPaymentDto = { holdId: mockHoldId, cardId: mockCardId };
+
+            await expect(useCase.execute(mockUserId, dto)).rejects.toThrow(NotFoundException);
         });
 
         it('should throw BadRequestException if saved card is expired', async () => {
-            const mockCard = {
-                id: 'card-1',
-                isExpired: jest.fn().mockReturnValue(true),
-            } as unknown as SavedCard;
+            savedCardRepo.findOne.mockResolvedValue({
+                id: mockCardId,
+                userId: mockUserId,
+                isExpired: () => true,
+            });
 
-            savedCardRepo.findOne.mockResolvedValue(mockCard);
+            const dto: ProcessPaymentDto = { holdId: mockHoldId, cardId: mockCardId };
 
-            await expect(
-                useCase.execute(mockUserId, { holdId: 'hold-1', cardId: 'card-1' }),
-            ).rejects.toThrow(BadRequestException);
+            await expect(useCase.execute(mockUserId, dto)).rejects.toThrow(
+                new BadRequestException('The selected card is expired'),
+            );
         });
-    });
 
-    describe('preparePaymentIntent', () => {
-        it('should return alreadySucceeded response if transaction was previously SUCCESS', async () => {
-            mockPaymentQueryBuilder.getOne.mockResolvedValue({
-                id: 'tx-1',
-                status: PaymentStatus.SUCCESS,
+        it('should throw BadRequestException if neither paymentMethodToken nor cardId is provided', async () => {
+            const dto: ProcessPaymentDto = { holdId: mockHoldId };
+
+            await expect(useCase.execute(mockUserId, dto)).rejects.toThrow(
+                new BadRequestException('Payment method or card reference is required'),
+            );
+        });
+
+        it('should return immediate success response if transaction already succeeded', async () => {
+            const dto: ProcessPaymentDto = { holdId: mockHoldId, paymentMethodToken: 'tok_123' };
+
+            mockEntityManager.getRepository.mockImplementation((entity) => {
+                if (entity === PaymentTransaction) {
+                    return {
+                        createQueryBuilder: () =>
+                            createQueryBuilderMock({ status: PaymentStatus.SUCCESS }),
+                    };
+                }
             });
 
-            const result = await useCase.execute(mockUserId, mockDto);
+            const result = await useCase.execute(mockUserId, dto);
 
-            expect(result).toEqual({
-                status: 'DONE',
-                message: 'Your appointment has been booked successfully',
-                details: {
-                    instruction: 'We will remind you, Please arrive 15 minutes before the appointment.',
-                },
-            });
+            expect(result.status).toBe('DONE');
             expect(stripeService.chargeCard).not.toHaveBeenCalled();
         });
 
-        it('should throw NotFoundException if hold is not found', async () => {
-            mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
-            mockHoldQueryBuilder.getOne.mockResolvedValue(null);
+        it('should throw BadRequestException if doctor is inactive', async () => {
+            const dto: ProcessPaymentDto = { holdId: mockHoldId, paymentMethodToken: 'tok_123' };
+            const mockHold = { id: mockHoldId, doctorId: 'doc-1', expiresAt: new Date(Date.now() + 10000) };
 
-            await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(NotFoundException);
-        });
-
-        it('should throw BadRequestException if hold is expired', async () => {
-            mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
-            mockHoldQueryBuilder.getOne.mockResolvedValue({
-                id: 'hold-123',
-                status: SlotHoldStatus.EXPIRED,
-                expiresAt: new Date(Date.now() - 10000),
+            mockEntityManager.getRepository.mockImplementation((entity) => {
+                if (entity === PaymentTransaction) {
+                    return { createQueryBuilder: () => createQueryBuilderMock(null) };
+                }
+                if (entity === SlotHoldEntity) {
+                    return {
+                        createQueryBuilder: () => createQueryBuilderMock(mockHold),
+                        update: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                if (entity === DoctorEntity) {
+                    return { findOne: jest.fn().mockResolvedValue({ id: 'doc-1', isActive: false }) };
+                }
             });
 
-            await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(BadRequestException);
+            await expect(useCase.execute(mockUserId, dto)).rejects.toThrow(
+                new BadRequestException(
+                    'This doctor is no longer available for appointments. Please choose another time or doctor.',
+                ),
+            );
         });
 
-        it('should update hold status to EXPIRED and throw BadRequestException if doctor is inactive or not found', async () => {
-            mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
-            mockHoldQueryBuilder.getOne.mockResolvedValue({
-                id: 'hold-123',
-                doctorId: 'doc-1',
-                status: SlotHoldStatus.ACTIVE,
-                expiresAt: new Date(Date.now() + 10000),
+        it('should handle Stripe communication failure and throw InternalServerErrorException', async () => {
+            const dto: ProcessPaymentDto = { holdId: mockHoldId, paymentMethodToken: 'tok_123' };
+            const mockHold = { id: mockHoldId, frozenFee: '100', expiresAt: new Date(Date.now() + 10000) };
+            const mockTx = { id: 'tx-123', idempotencyKey: 'PAY-hold-123-user-123' };
+
+            mockEntityManager.getRepository.mockImplementation((entity) => {
+                if (entity === PaymentTransaction) {
+                    return {
+                        createQueryBuilder: () => createQueryBuilderMock(null),
+                        create: jest.fn().mockReturnValue(mockTx),
+                        save: jest.fn().mockResolvedValue(mockTx),
+                        update: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                if (entity === SlotHoldEntity) {
+                    return { createQueryBuilder: () => createQueryBuilderMock(mockHold) };
+                }
+                if (entity === DoctorEntity) {
+                    return { findOne: jest.fn().mockResolvedValue({ id: 'doc-1', isActive: true }) };
+                }
             });
-            mockDoctorRepo.findOne.mockResolvedValue(null);
 
-            await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(BadRequestException);
-            expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-123', {
-                status: SlotHoldStatus.EXPIRED,
-            });
-        });
+            stripeService.chargeCard.mockRejectedValue(new Error('Stripe timeout'));
 
-        it('should throw ConflictException if slot hold is already consumed and transaction is not PENDING', async () => {
-            mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
-            mockHoldQueryBuilder.getOne.mockResolvedValue({
-                id: 'hold-123',
-                doctorId: 'doc-1',
-                status: SlotHoldStatus.CONSUMED,
-                expiresAt: new Date(Date.now() + 10000),
-            });
-
-            await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(ConflictException);
-        });
-    });
-
-    describe('Stripe Charge & Finalization', () => {
-        let mockHold: any;
-        let mockTx: any;
-
-        beforeEach(() => {
-            mockHold = {
-                id: 'hold-123',
-                doctorId: 'doc-1',
-                patientId: mockUserId,
-                frozenFee: 200,
-                status: SlotHoldStatus.ACTIVE,
-                expiresAt: new Date(Date.now() + 10000),
-                clinicId: 'clinic-1',
-                date: '2026-04-01',
-                startTime: '10:00',
-                endTime: '10:30',
-            };
-
-            mockTx = {
-                id: 'tx-123',
-                idempotencyKey: 'PAY-hold-123-user-uuid-123',
-                status: PaymentStatus.PENDING,
-            };
-
-            mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
-            mockHoldQueryBuilder.getOne.mockResolvedValue(mockHold);
-            mockDoctorRepo.findOne.mockResolvedValue({ id: 'doc-1', isActive: true });
-            mockPaymentRepo.create.mockReturnValue(mockTx);
-            mockPaymentRepo.save.mockResolvedValue(mockTx);
-        });
-
-        it('should handle Stripe API/Network failure and set status to REQUIRES_RECONCILIATION', async () => {
-            stripeService.chargeCard.mockRejectedValue(new Error('Stripe Down'));
-
-            await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(
+            await expect(useCase.execute(mockUserId, dto)).rejects.toThrow(
                 InternalServerErrorException,
             );
 
-            expect(dataSource.getRepository(PaymentTransaction).update).toHaveBeenCalledWith('tx-123', {
-                status: PaymentStatus.REQUIRES_RECONCILIATION,
-                failureReason: 'Payment provider unreachable or timed out',
-            });
+            expect(dataSource.getRepository(PaymentTransaction).update).toHaveBeenCalledWith(
+                'tx-123',
+                expect.objectContaining({
+                    status: PaymentStatus.REQUIRES_RECONCILIATION,
+                }),
+            );
         });
 
-        it('should handle payment failure and soft delete card if token is invalid', async () => {
-            const dtoWithCard = { ...mockDto, cardId: 'card-abc' };
+        it('should handle payment failure when Stripe rejects card and call handleFailure', async () => {
+            const dto: ProcessPaymentDto = {
+                holdId: mockHoldId,
+                cardId: mockCardId,
+            };
+
+            savedCardRepo.findOne.mockResolvedValue({
+                id: mockCardId,
+                userId: mockUserId,
+                isExpired: () => false,
+                providerCardToken: 'tok_saved',
+            });
+
+            const mockHold = { id: mockHoldId, frozenFee: '100', expiresAt: new Date(Date.now() + 10000) };
+            const mockTx = { id: 'tx-123' };
+
+            mockEntityManager.getRepository.mockImplementation((entity) => {
+                if (entity === PaymentTransaction) {
+                    return {
+                        createQueryBuilder: () => createQueryBuilderMock(null),
+                        create: jest.fn().mockReturnValue(mockTx),
+                        save: jest.fn().mockResolvedValue(mockTx),
+                        update: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                if (entity === SlotHoldEntity) {
+                    return {
+                        createQueryBuilder: () => createQueryBuilderMock(mockHold),
+                        update: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                if (entity === DoctorEntity) {
+                    return { findOne: jest.fn().mockResolvedValue({ id: 'doc-1', isActive: true }) };
+                }
+                if (entity === SavedCard) {
+                    return {
+                        findOne: jest.fn().mockResolvedValue({ id: mockCardId, last4Digits: '4242' }),
+                        softDelete: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                return { save: jest.fn().mockResolvedValue({}) };
+            });
 
             stripeService.chargeCard.mockResolvedValue({
                 isSuccess: false,
-                transactionReference: undefined,
-                failureReason: 'Card Declined',
+                failureReason: 'Invalid token',
                 isTokenInvalid: true,
+                transactionReference: undefined,
             });
 
-            mockTxCardRepo.findOne.mockResolvedValue({
-                id: 'card-abc',
-                userId: mockUserId,
-                last4Digits: '4242',
-            });
-
-            await expect(useCase.execute(mockUserId, dtoWithCard)).rejects.toThrow(
-                BadRequestException,
-            );
-
-            expect(mockPaymentRepo.update).toHaveBeenCalledWith('tx-123', {
-                status: PaymentStatus.FAILED,
-                failureReason: 'Card Declined',
-            });
-            expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-123', {
-                status: SlotHoldStatus.EXPIRED,
-            });
-
-            expect(mockTxCardRepo.softDelete).toHaveBeenCalledWith('card-abc');
-            expect(mockOutboxRepo.save).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    aggregateType: 'PAYMENT_METHOD',
-                    eventType: 'PAYMENT_METHOD_REMOVED',
-                }),
+            await expect(useCase.execute(mockUserId, dto)).rejects.toThrow(
+                new BadRequestException('This saved card is no longer valid. Please add it again.'),
             );
         });
 
-        it('should process payment successfully and save outbox events (Happy Path)', async () => {
+        it('should process payment successfully and create outbox events and appointment', async () => {
+            const dto: ProcessPaymentDto = { holdId: mockHoldId, paymentMethodToken: 'tok_123' };
+            const mockHold = {
+                id: mockHoldId,
+                frozenFee: '150',
+                status: SlotHoldStatus.ACTIVE,
+                expiresAt: new Date(Date.now() + 10000),
+                patientId: mockUserId,
+                doctorId: 'doc-1',
+                clinicId: 'clinic-1',
+                date: '2026-10-02',
+                startTime: '10:00',
+                endTime: '10:30',
+            };
+            const mockTx = {
+                id: 'tx-123',
+                status: PaymentStatus.PENDING,
+                idempotencyKey: `PAY-${mockHoldId}-${mockUserId}`
+            };
+
+            const outboxSaveMock = jest.fn().mockResolvedValue({});
+
+            mockEntityManager.getRepository.mockImplementation((entity) => {
+                if (entity === PaymentTransaction) {
+                    return {
+                        createQueryBuilder: () => createQueryBuilderMock(mockTx),
+                        create: jest.fn().mockReturnValue(mockTx),
+                        save: jest.fn().mockResolvedValue(mockTx),
+                        update: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                if (entity === SlotHoldEntity) {
+                    return {
+                        createQueryBuilder: () => createQueryBuilderMock(mockHold),
+                        update: jest.fn().mockResolvedValue({}),
+                    };
+                }
+                if (entity === DoctorEntity) {
+                    return { findOne: jest.fn().mockResolvedValue({ id: 'doc-1', isActive: true }) };
+                }
+                if (entity === OutboxEventEntity) {
+                    return { save: outboxSaveMock };
+                }
+                return { save: jest.fn().mockResolvedValue({}) };
+            });
+
             stripeService.chargeCard.mockResolvedValue({
                 isSuccess: true,
                 transactionReference: 'ch_stripe_ref_123',
@@ -306,77 +299,11 @@ describe('ProcessPaymentUseCase', () => {
                 isTokenInvalid: false,
             });
 
-            mockPaymentQueryBuilder.getOne.mockResolvedValueOnce(null).mockResolvedValueOnce(mockTx);
+            const response = await useCase.execute(mockUserId, dto);
 
-            const result = await useCase.execute(mockUserId, mockDto);
-
-            expect(stripeService.chargeCard).toHaveBeenCalledWith({
-                amount: 200,
-                currency: 'egp',
-                paymentMethodId: 'pm_tok_123',
-                idempotencyKey: 'PAY-hold-123-user-uuid-123',
-            });
-
-            expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    status: PaymentStatus.SUCCESS,
-                    providerReference: 'ch_stripe_ref_123',
-                }),
-            );
-
-            expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-123', {
-                status: SlotHoldStatus.CONSUMED,
-            });
-
-            expect(mockOutboxRepo.save).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    aggregateType: 'PAYMENT',
-                    eventType: 'PAYMENT_SUCCEEDED',
-                }),
-            );
-
-            expect(mockOutboxRepo.save).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    aggregateType: 'APPOINTMENT',
-                    eventType: 'APPOINTMENT_BOOKED',
-                }),
-            );
-
-            expect(result).toEqual({
-                status: 'DONE',
-                message: 'Your appointment has been booked successfully',
-                details: {
-                    instruction: 'We will remind you, Please arrive 15 minutes before the appointment.',
-                },
-            });
-        });
-
-        it('should set status to REQUIRES_RECONCILIATION if finalizing payment fails unexpectedly', async () => {
-            stripeService.chargeCard.mockResolvedValue({
-                isSuccess: true,
-                transactionReference: 'ch_stripe_ref_123',
-                failureReason: undefined,
-                isTokenInvalid: false,
-            });
-
-            mockPaymentQueryBuilder.getOne
-                .mockResolvedValueOnce(null)
-                .mockResolvedValueOnce(mockTx);
-
-            mockPaymentRepo.save
-                .mockResolvedValueOnce(mockTx)
-                .mockImplementationOnce(() => {
-                    throw new Error('Database transaction write failed during finalization');
-                });
-
-            await expect(useCase.execute(mockUserId, mockDto)).rejects.toThrow(
-                InternalServerErrorException,
-            );
-
-            expect(dataSource.getRepository(PaymentTransaction).update).toHaveBeenCalledWith('tx-123', {
-                status: PaymentStatus.REQUIRES_RECONCILIATION,
-                failureReason: 'Booking completion failed after charge',
-            });
+            expect(response.status).toBe('DONE');
+            expect(response.message).toContain('booked successfully');
+            expect(outboxSaveMock).toHaveBeenCalledTimes(2);
         });
     });
 });

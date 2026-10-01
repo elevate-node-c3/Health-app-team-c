@@ -1,5 +1,6 @@
 import {
     Injectable,
+    Logger,
     BadRequestException,
     ConflictException,
     NotFoundException,
@@ -10,10 +11,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessPaymentDto } from '../dto/process-payment.dto';
 import { StripeService } from '../services/stripe.service';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
+import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
+import { createAppointmentFromHold } from 'src/modules/booking/helpers/create-appointment-from-hold';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { SavedCard } from '../entities/saved-card.entity';
 import { DoctorEntity } from 'src/modules/catalog/entities/doctor.entity';
-import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
 
 interface PreparedIntent {
     alreadySucceeded: boolean;
@@ -39,6 +41,8 @@ const SUCCESS_RESPONSE = {
 
 @Injectable()
 export class ProcessPaymentUseCase {
+    private readonly logger = new Logger(ProcessPaymentUseCase.name);
+
     constructor(
         private readonly dataSource: DataSource,
         private readonly stripeService: StripeService,
@@ -86,7 +90,7 @@ export class ProcessPaymentUseCase {
             paymentTx: PaymentTransaction;
         };
 
-        let stripeResult: any;
+        let stripeResult;
         try {
             stripeResult = await this.stripeService.chargeCard({
                 amount: Number(hold.frozenFee),
@@ -94,7 +98,11 @@ export class ProcessPaymentUseCase {
                 paymentMethodId: tokenToCharge,
                 idempotencyKey: paymentTx.idempotencyKey,
             });
-        } catch (err) {
+        } catch (err: any) {
+            this.logger.error(
+                `Stripe charge call failed for tx ${paymentTx.id}: ${err?.message}`,
+                err?.stack,
+            );
             await this.dataSource.getRepository(PaymentTransaction).update(paymentTx.id, {
                 status: PaymentStatus.REQUIRES_RECONCILIATION,
                 failureReason: 'Payment provider unreachable or timed out',
@@ -129,7 +137,12 @@ export class ProcessPaymentUseCase {
                 paymentTx.id,
                 stripeResult.transactionReference || '',
             );
-        } catch (error) {
+        } catch (error: any) {
+            this.logger.error(
+                `Finalize failed for tx ${paymentTx.id} (hold ${hold.id}): ${error?.message}`,
+                error?.stack,
+            );
+
             await this.dataSource.getRepository(PaymentTransaction).update(paymentTx.id, {
                 status: PaymentStatus.REQUIRES_RECONCILIATION,
                 failureReason:
@@ -248,6 +261,8 @@ export class ProcessPaymentUseCase {
 
                 await holdRepo.update(hold.id, { status: SlotHoldStatus.CONSUMED });
 
+                const appointment = await createAppointmentFromHold(manager, hold);
+
                 await outboxRepo.save({
                     aggregateType: 'PAYMENT',
                     aggregateId: paymentTx.id,
@@ -264,10 +279,11 @@ export class ProcessPaymentUseCase {
 
                 await outboxRepo.save({
                     aggregateType: 'APPOINTMENT',
-                    aggregateId: hold.id,
+                    aggregateId: appointment.id,
                     exchange: 'appointment_exchange',
                     eventType: 'APPOINTMENT_BOOKED',
                     payload: {
+                        appointmentId: appointment.id,
                         userId,
                         patientId: hold.patientId,
                         holdId: hold.id,

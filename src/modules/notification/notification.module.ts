@@ -10,10 +10,12 @@ import { FavoriteNotificationConsumer } from './consumers/favorite-notification.
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
 import { MarkAllAsReadUseCase } from './use-case/mark-all-as-read.use-case';
 import { AppointmentEventsConsumer } from './consumers/appointment-notification.consumer';
+import { RefundEventsConsumer } from './consumers/refund-notification.consumer';
 import { UserEntity } from '../auth/entities/user.entity';
 import { AppointmentMailService } from 'src/common/mail/appointment-mail.service';
 import { ClinicEntity } from '../catalog/entities/clinic.entity';
 import { DoctorEntity } from '../catalog/entities/doctor.entity';
+import { RefundMailService } from 'src/common/mail/refund-mail.service';
 
 const USE_CASES = [
     SendNotificationUseCase,
@@ -29,13 +31,16 @@ const USE_CASES = [
         UserEntity,
         DoctorEntity,
         ClinicEntity,
+
     ])],
     controllers: [NotificationController],
     providers: [
         NotificationService,
         FavoriteNotificationConsumer,
         AppointmentEventsConsumer,
+        RefundEventsConsumer,
         AppointmentMailService,
+        RefundMailService,
         ...USE_CASES
     ],
     exports: [

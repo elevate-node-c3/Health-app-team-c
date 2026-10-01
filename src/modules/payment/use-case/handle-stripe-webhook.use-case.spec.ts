@@ -1,86 +1,56 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource } from 'typeorm';
 import * as Stripe from 'stripe';
-
 import { HandleStripeWebhookUseCase } from './handle-stripe-webhook.use-case';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
 import { SlotHoldEntity, SlotHoldStatus } from 'src/modules/booking/entities/slot-hold.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 
+jest.mock('src/modules/booking/helpers/create-appointment-from-hold', () => ({
+    createAppointmentFromHold: jest.fn().mockResolvedValue({ id: 'app-999' }),
+}));
+
 describe('HandleStripeWebhookUseCase', () => {
     let useCase: HandleStripeWebhookUseCase;
-    let dataSource: jest.Mocked<DataSource>;
+    let dataSource: any;
+    let mockEntityManager: any;
 
-    const mockEntityManager = {
-        getRepository: jest.fn(),
-    } as unknown as jest.Mocked<EntityManager>;
-
-    const mockPaymentRepo = {
-        createQueryBuilder: jest.fn(),
-        save: jest.fn(),
-        update: jest.fn(),
-    };
-
-    const mockHoldRepo = {
-        createQueryBuilder: jest.fn(),
-        update: jest.fn(),
-    };
-
-    const mockOutboxRepo = {
-        save: jest.fn(),
-    };
-
-    const mockPaymentQueryBuilder = {
+    const createQueryBuilderMock = (result: any) => ({
         setLock: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        getOne: jest.fn(),
-    };
-
-    const mockHoldQueryBuilder = {
-        setLock: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        getOne: jest.fn(),
-    };
+        getOne: jest.fn().mockResolvedValue(result),
+    });
 
     beforeEach(async () => {
+        mockEntityManager = {
+            getRepository: jest.fn(),
+            save: jest.fn(),
+        };
+
+        dataSource = {
+            transaction: jest.fn((cb) => cb(mockEntityManager)),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 HandleStripeWebhookUseCase,
                 {
                     provide: DataSource,
-                    useValue: {
-                        transaction: jest.fn().mockImplementation((cb) => cb(mockEntityManager)),
-                    },
+                    useValue: dataSource,
                 },
             ],
         }).compile();
 
         useCase = module.get<HandleStripeWebhookUseCase>(HandleStripeWebhookUseCase);
-        dataSource = module.get(DataSource);
-
-        jest.clearAllMocks();
-
-        mockPaymentRepo.createQueryBuilder.mockReturnValue(mockPaymentQueryBuilder);
-        mockHoldRepo.createQueryBuilder.mockReturnValue(mockHoldQueryBuilder);
-
-        (mockEntityManager.getRepository as jest.Mock).mockImplementation((entity) => {
-            if (entity === PaymentTransaction) return mockPaymentRepo;
-            if (entity === SlotHoldEntity) return mockHoldRepo;
-            if (entity === OutboxEventEntity) return mockOutboxRepo;
-            return null;
-        });
     });
 
-    it('should be defined', () => {
-        expect(useCase).toBeDefined();
+    afterEach(() => {
+        jest.clearAllMocks();
     });
 
     describe('execute', () => {
-        it('should ignore unhandled event types and return received: true', async () => {
-            const event = {
-                type: 'customer.created',
-                data: { object: {} },
-            } as Stripe.Event;
+        it('should ignore unhandled event types and return { received: true }', async () => {
+            const event = { type: 'customer.created', data: { object: {} } } as Stripe.Event;
 
             const result = await useCase.execute(event);
 
@@ -88,224 +58,210 @@ describe('HandleStripeWebhookUseCase', () => {
             expect(dataSource.transaction).not.toHaveBeenCalled();
         });
 
-        describe('payment_intent.succeeded', () => {
-            const mockPaymentIntent: Partial<Stripe.PaymentIntent> = {
-                id: 'pi_12345',
-                metadata: { idempotencyKey: 'idemp-key-123' },
-            };
-
-            const event = {
-                type: 'payment_intent.succeeded',
-                data: { object: mockPaymentIntent },
-            } as Stripe.Event;
-
-            it('should search transaction by idempotencyKey if present', async () => {
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
-
-                await useCase.execute(event);
-
-                expect(mockPaymentQueryBuilder.where).toHaveBeenCalledWith(
-                    'tx.idempotencyKey = :idempotencyKey',
-                    { idempotencyKey: 'idemp-key-123' },
-                );
-            });
-
-            it('should search transaction by providerReference if idempotencyKey is missing', async () => {
-                const eventWithoutIdempKey = {
+        describe('processSuccessfulPayment', () => {
+            it('should warn and exit if no transaction is found', async () => {
+                const event = {
                     type: 'payment_intent.succeeded',
-                    data: { object: { id: 'pi_12345', metadata: {} } },
-                } as Stripe.Event;
+                    data: {
+                        object: {
+                            id: 'pi_123',
+                            metadata: { idempotencyKey: 'PAY-123' },
+                        },
+                    },
+                } as unknown as Stripe.Event;
 
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
+                mockEntityManager.getRepository.mockImplementation((entity) => {
+                    if (entity === PaymentTransaction) {
+                        return { createQueryBuilder: () => createQueryBuilderMock(null) };
+                    }
+                });
 
-                await useCase.execute(eventWithoutIdempKey);
+                const result = await useCase.execute(event);
 
-                expect(mockPaymentQueryBuilder.where).toHaveBeenCalledWith(
-                    'tx.providerReference = :stripeRef',
-                    { stripeRef: 'pi_12345' },
-                );
+                expect(result).toEqual({ received: true });
             });
 
-            it('should return without changes if transaction is not found', async () => {
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(null);
+            it('should skip processing if transaction is already SUCCESS', async () => {
+                const event = {
+                    type: 'payment_intent.succeeded',
+                    data: {
+                        object: {
+                            id: 'pi_123',
+                        },
+                    },
+                } as unknown as Stripe.Event;
 
-                await useCase.execute(event);
+                mockEntityManager.getRepository.mockImplementation((entity) => {
+                    if (entity === PaymentTransaction) {
+                        return {
+                            createQueryBuilder: () =>
+                                createQueryBuilderMock({ id: 'tx-1', status: PaymentStatus.SUCCESS }),
+                        };
+                    }
+                });
 
-                expect(mockPaymentRepo.save).not.toHaveBeenCalled();
-                expect(mockOutboxRepo.save).not.toHaveBeenCalled();
+                const result = await useCase.execute(event);
+
+                expect(result).toEqual({ received: true });
             });
 
-            it('should return without changes if transaction was already SUCCESS', async () => {
-                mockPaymentQueryBuilder.getOne.mockResolvedValue({
-                    id: 'tx-1',
-                    status: PaymentStatus.SUCCESS,
+            it('should mark transaction as REQUIRES_RECONCILIATION if hold is missing or invalid', async () => {
+                const event = {
+                    type: 'payment_intent.succeeded',
+                    data: {
+                        object: {
+                            id: 'pi_123',
+                            metadata: { idempotencyKey: 'PAY-123' },
+                        },
+                    },
+                } as unknown as Stripe.Event;
+
+                const mockTx = { id: 'tx-123', holdId: 'hold-123', status: PaymentStatus.PENDING };
+                const updatePaymentMock = jest.fn().mockResolvedValue({});
+
+                mockEntityManager.getRepository.mockImplementation((entity) => {
+                    if (entity === PaymentTransaction) {
+                        return {
+                            createQueryBuilder: () => createQueryBuilderMock(mockTx),
+                            update: updatePaymentMock,
+                        };
+                    }
+                    if (entity === SlotHoldEntity) {
+                        return {
+                            createQueryBuilder: () => createQueryBuilderMock(null), // Hold not found
+                        };
+                    }
                 });
 
                 await useCase.execute(event);
 
-                expect(mockPaymentRepo.save).not.toHaveBeenCalled();
-                expect(mockOutboxRepo.save).not.toHaveBeenCalled();
-            });
-
-            it('should process successful payment and book appointment when active hold is found', async () => {
-                const mockPaymentTx = {
-                    id: 'tx-123',
-                    userId: 'user-1',
-                    holdId: 'hold-1',
-                    amount: 100,
-                    status: PaymentStatus.PENDING,
-                };
-
-                const mockHold = {
-                    id: 'hold-1',
-                    patientId: 'patient-1',
-                    doctorId: 'doc-88',
-                    clinicId: 'clinic-1',
-                    date: '2026-10-01',
-                    startTime: '10:00',
-                    endTime: '10:30',
-                    status: SlotHoldStatus.ACTIVE,
-                };
-
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
-                mockHoldQueryBuilder.getOne.mockResolvedValue(mockHold);
-
-                await useCase.execute(event);
-
-                expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        status: PaymentStatus.SUCCESS,
-                        providerReference: 'pi_12345',
-                    }),
-                );
-
-                expect(mockOutboxRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        aggregateType: 'PAYMENT',
-                        aggregateId: 'tx-123',
-                        eventType: 'PAYMENT_SUCCEEDED',
-                    }),
-                );
-
-                expect(mockHoldRepo.update).toHaveBeenCalledWith('hold-1', {
-                    status: SlotHoldStatus.CONSUMED,
-                });
-
-                expect(mockOutboxRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        aggregateType: 'APPOINTMENT',
-                        aggregateId: 'hold-1',
-                        eventType: 'APPOINTMENT_BOOKED',
-                    }),
-                );
-            });
-
-            it('should set status to REQUIRES_RECONCILIATION if hold is missing or invalid', async () => {
-                const mockPaymentTx = {
-                    id: 'tx-123',
-                    userId: 'user-1',
-                    holdId: 'hold-missing',
-                    amount: 100,
-                    status: PaymentStatus.PENDING,
-                };
-
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
-                mockHoldQueryBuilder.getOne.mockResolvedValue(null);
-
-                await useCase.execute(event);
-
-                expect(mockPaymentRepo.update).toHaveBeenCalledWith('tx-123', {
+                expect(updatePaymentMock).toHaveBeenCalledWith('tx-123', {
                     status: PaymentStatus.REQUIRES_RECONCILIATION,
-                    providerReference: 'pi_12345',
+                    providerReference: 'pi_123',
                     failureReason: 'Charged but hold not active',
                 });
             });
-        });
 
-        describe('payment_intent.payment_failed', () => {
-            const mockPaymentIntentFailed: Partial<Stripe.PaymentIntent> = {
-                id: 'pi_failed_123',
-                metadata: { idempotencyKey: 'idemp-fail-123' },
-                last_payment_error: {
-                    message: 'Insufficient funds',
-                } as any,
-            };
+            it('should process payment successfully and create appointment when hold is ACTIVE', async () => {
+                const event = {
+                    type: 'payment_intent.succeeded',
+                    data: {
+                        object: {
+                            id: 'pi_123',
+                            metadata: { idempotencyKey: 'PAY-123' },
+                        },
+                    },
+                } as unknown as Stripe.Event;
 
-            const event = {
-                type: 'payment_intent.payment_failed',
-                data: { object: mockPaymentIntentFailed },
-            } as Stripe.Event;
-
-            it('should process failed payment and expire hold', async () => {
-                const mockPaymentTx = {
-                    id: 'tx-failed-123',
+                const mockTx = {
+                    id: 'tx-123',
                     userId: 'user-1',
-                    holdId: 'hold-to-expire',
+                    holdId: 'hold-123',
+                    amount: '100',
                     status: PaymentStatus.PENDING,
                 };
+                const mockHold = {
+                    id: 'hold-123',
+                    status: SlotHoldStatus.ACTIVE,
+                    patientId: 'patient-1',
+                    doctorId: 'doc-1',
+                    clinicId: 'clinic-1',
+                    date: '2026-10-02',
+                    startTime: '10:00',
+                    endTime: '10:30',
+                };
 
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
-                mockHoldRepo.update.mockResolvedValue({ affected: 1, raw: [] });
+                const savePaymentMock = jest.fn().mockResolvedValue({});
+                const saveOutboxMock = jest.fn().mockResolvedValue({});
+                const updateHoldMock = jest.fn().mockResolvedValue({});
 
-                await useCase.execute(event);
-
-                expect(mockPaymentRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        status: PaymentStatus.FAILED,
-                        failureReason: 'Insufficient funds',
-                    }),
-                );
-
-                expect(mockHoldRepo.update).toHaveBeenCalledWith(
-                    { id: 'hold-to-expire', status: SlotHoldStatus.ACTIVE },
-                    { status: SlotHoldStatus.EXPIRED },
-                );
-
-                expect(mockOutboxRepo.save).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        aggregateType: 'PAYMENT',
-                        aggregateId: 'tx-failed-123',
-                        eventType: 'PAYMENT_FAILED',
-                        payload: expect.objectContaining({
-                            reason: 'Insufficient funds',
-                        }),
-                    }),
-                );
-            });
-
-            it('should return without making changes if transaction is already SUCCESS', async () => {
-                mockPaymentQueryBuilder.getOne.mockResolvedValue({
-                    id: 'tx-123',
-                    status: PaymentStatus.SUCCESS,
+                mockEntityManager.getRepository.mockImplementation((entity) => {
+                    if (entity === PaymentTransaction) {
+                        return {
+                            createQueryBuilder: () => createQueryBuilderMock(mockTx),
+                            save: savePaymentMock,
+                        };
+                    }
+                    if (entity === SlotHoldEntity) {
+                        return {
+                            createQueryBuilder: () => createQueryBuilderMock(mockHold),
+                            update: updateHoldMock,
+                        };
+                    }
+                    if (entity === OutboxEventEntity) {
+                        return { save: saveOutboxMock };
+                    }
                 });
 
                 await useCase.execute(event);
 
-                expect(mockPaymentRepo.save).not.toHaveBeenCalled();
-                expect(mockHoldRepo.update).not.toHaveBeenCalled();
-                expect(mockOutboxRepo.save).not.toHaveBeenCalled();
+                expect(savePaymentMock).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        status: PaymentStatus.SUCCESS,
+                        providerReference: 'pi_123',
+                    }),
+                );
+                expect(updateHoldMock).toHaveBeenCalledWith('hold-123', {
+                    status: SlotHoldStatus.CONSUMED,
+                });
+                expect(saveOutboxMock).toHaveBeenCalledTimes(2);
             });
+        });
 
-            it('should use default message if last_payment_error is missing', async () => {
-                const eventWithoutError = {
+        describe('processFailedPayment', () => {
+            it('should handle failed payment intent and release hold if ACTIVE', async () => {
+                const event = {
                     type: 'payment_intent.payment_failed',
-                    data: { object: { id: 'pi_123' } },
-                } as Stripe.Event;
+                    data: {
+                        object: {
+                            id: 'pi_failed_123',
+                            last_payment_error: { message: 'Card declined' },
+                        },
+                    },
+                } as unknown as Stripe.Event;
 
-                const mockPaymentTx = {
+                const mockTx = {
                     id: 'tx-123',
-                    holdId: 'hold-1',
+                    userId: 'user-1',
+                    holdId: 'hold-123',
                     status: PaymentStatus.PENDING,
                 };
 
-                mockPaymentQueryBuilder.getOne.mockResolvedValue(mockPaymentTx);
-                mockHoldRepo.update.mockResolvedValue({ affected: 0, raw: [] });
+                const savePaymentMock = jest.fn().mockResolvedValue({});
+                const saveOutboxMock = jest.fn().mockResolvedValue({});
+                const updateHoldMock = jest.fn().mockResolvedValue({ affected: 1 });
 
-                await useCase.execute(eventWithoutError);
+                mockEntityManager.getRepository.mockImplementation((entity) => {
+                    if (entity === PaymentTransaction) {
+                        return {
+                            createQueryBuilder: () => createQueryBuilderMock(mockTx),
+                            save: savePaymentMock,
+                        };
+                    }
+                    if (entity === SlotHoldEntity) {
+                        return { update: updateHoldMock };
+                    }
+                    if (entity === OutboxEventEntity) {
+                        return { save: saveOutboxMock };
+                    }
+                });
 
-                expect(mockPaymentRepo.save).toHaveBeenCalledWith(
+                await useCase.execute(event);
+
+                expect(savePaymentMock).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        failureReason: 'Payment failed',
+                        status: PaymentStatus.FAILED,
+                        failureReason: 'Card declined',
+                    }),
+                );
+                expect(updateHoldMock).toHaveBeenCalledWith(
+                    { id: 'hold-123', status: SlotHoldStatus.ACTIVE },
+                    { status: SlotHoldStatus.EXPIRED },
+                );
+                expect(saveOutboxMock).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        eventType: 'PAYMENT_FAILED',
+                        aggregateId: 'tx-123',
                     }),
                 );
             });

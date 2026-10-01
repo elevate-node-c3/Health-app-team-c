@@ -16,7 +16,7 @@ export class ReleaseExpiredHoldsUseCase {
     @InjectRepository(SlotHoldEntity)
     private readonly holdRepo: Repository<SlotHoldEntity>,
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async execute(): Promise<number> {
@@ -47,23 +47,23 @@ export class ReleaseExpiredHoldsUseCase {
         fresh.status = SlotHoldStatus.EXPIRED;
         await queryRunner.manager.save(fresh);
 
-        await queryRunner.manager.save(
-          queryRunner.manager.create(OutboxEventEntity, {
-            aggregateType: 'SLOT_HOLD',
-            eventType: 'hold.expired',
-            payload: {
-              holdId: fresh.id,
-              patientId: fresh.patientId,
-              doctorId: fresh.doctorId,
-              clinicId: fresh.clinicId,
-              date: fresh.date,
-              startTime: fresh.startTime.substring(0, 5),
-            },
-            isProcessed: false,
-          }),
-        );
+        queryRunner.manager.create(OutboxEventEntity, {
+          aggregateType: 'SLOT_HOLD',
+          aggregateId: fresh.id,
+          exchange: 'appointment_exchange',
+          eventType: 'hold.expired',
+          payload: {
+            holdId: fresh.id,
+            patientId: fresh.patientId,
+            doctorId: fresh.doctorId,
+            clinicId: fresh.clinicId,
+            date: fresh.date,
+            startTime: fresh.startTime.substring(0, 5),
+          },
+          isProcessed: false,
+        }),
 
-        await queryRunner.commitTransaction();
+          await queryRunner.commitTransaction();
       } catch (err: unknown) {
         await queryRunner.rollbackTransaction();
         const reason = err instanceof Error ? err.message : 'unknown error';
