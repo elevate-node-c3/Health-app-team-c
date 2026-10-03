@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BookingController } from './booking.controller';
 import { BookingService } from './booking.service';
 import { SlotHoldEntity } from './entities/slot-hold.entity';
+import { AppointmentReminderEntity } from './entities/appointment-reminder.entity';
 import { DoctorClinicEntity } from '../catalog/entities/doctor-clinic.entity';
 import { AppointmentEntity } from '../catalog/entities/appointment.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
@@ -21,6 +22,7 @@ import { PaymentModule } from '../payment/payment.module';
   imports: [
     TypeOrmModule.forFeature([
       SlotHoldEntity,
+      AppointmentReminderEntity,
       DoctorClinicEntity,
       AppointmentEntity,
       OutboxEventEntity,
