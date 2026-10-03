@@ -26,7 +26,6 @@ export class PreviewCancellationUseCase {
             where: { id: appointmentId },
         });
 
-        // موعد حد تاني = "مش موجود"
         if (!appointment || appointment.patientId !== patientId) {
             throw new NotFoundException('Appointment not found');
         }

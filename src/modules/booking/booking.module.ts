@@ -18,6 +18,7 @@ import { AppointmentReminderService } from './services/appointment-reminder.serv
 import { AppointmentReminderSchedulingConsumer } from './consumer/appointment-reminder-scheduling.consumer';
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
 import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
+import { RescheduleAppointmentUseCase } from './use-case/reschedule-appointment.use-case';
 import { AppointmentCancelledConsumer } from './consumer/appiontment-cancle.consumer';
 import { PaymentModule } from '../payment/payment.module';
 
@@ -46,6 +47,7 @@ import { PaymentModule } from '../payment/payment.module';
     AppointmentReminderSchedulingConsumer,
     PreviewCancellationUseCase,
     CancelAppointmentUseCase,
+    RescheduleAppointmentUseCase,
     AppointmentCancelledConsumer,
   ],
 })
