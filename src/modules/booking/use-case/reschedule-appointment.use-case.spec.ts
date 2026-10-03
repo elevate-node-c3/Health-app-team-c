@@ -11,6 +11,11 @@ import {
   AppointmentEntity,
   AppointmentStatus,
 } from 'src/modules/catalog/entities/appointment.entity';
+import {
+  CancellationDecision,
+  decideCancellation,
+} from '../policies/cancellation-policy';
+import { getAppointmentStart } from '../helpers/appiontment-time';
 
 const ZONE = 'Africa/Cairo';
 
@@ -29,7 +34,7 @@ function fullPairing() {
     isActive: true,
     doctor: { isActive: true, isVerified: true },
     clinic: { isActive: true },
-    schedule: { ...days, slotDuration: 30 },
+    schedule: { ...days, slotDuration: 30, leaves: [] as string[] },
   };
 }
 
@@ -42,6 +47,7 @@ describe('RescheduleAppointmentUseCase', () => {
   let sameDayRows: AppointmentEntity[];
   let holdRows: Array<{ startTime: string; expiresAt: Date }>;
   let saveError: unknown = null;
+  let pairingOverride: ReturnType<typeof fullPairing> | null;
 
   beforeEach(() => {
     savedAppointment = null;
@@ -50,6 +56,7 @@ describe('RescheduleAppointmentUseCase', () => {
     sameDayRows = [];
     holdRows = [];
     saveError = null;
+    pairingOverride = null;
 
     const appointmentQb = {
       setLock: jest.fn().mockReturnThis(),
@@ -77,7 +84,9 @@ describe('RescheduleAppointmentUseCase', () => {
           };
         }
         if (name === 'DoctorClinicEntity') {
-          return { findOne: jest.fn(async () => fullPairing()) };
+          return {
+            findOne: jest.fn(async () => pairingOverride ?? fullPairing()),
+          };
         }
         if (name === 'SlotHoldEntity') {
           return { createQueryBuilder: jest.fn(() => holdQb) };
@@ -270,5 +279,84 @@ describe('RescheduleAppointmentUseCase', () => {
       }),
     ).rejects.toThrow(ConflictException);
     expect(savedEvents).toHaveLength(0);
+  });
+
+  it('closes the D2 loophole: 30h+ moved to 2h-away, cancel on NEW start is NO_REFUND', async () => {
+    appointmentRow = bookableRow(30);
+    const rawTarget = cairoDateTime(2);
+    const target = rawTarget.set({
+      minute: rawTarget.minute < 30 ? 0 : 30,
+      second: 0,
+      millisecond: 0,
+    });
+
+    const result = await useCase.execute('app-1', 'patient-1', {
+      date: target.toFormat('yyyy-MM-dd'),
+      newStartTime: target.toFormat('HH:mm'),
+    });
+
+    expect(result.rescheduleCount).toBe(1);
+    const movedStart = getAppointmentStart({
+      date: result.date,
+      startTime: result.startTime,
+    });
+    expect(decideCancellation(movedStart, new Date())).toBe(
+      CancellationDecision.NO_REFUND,
+    );
+  });
+
+  it('refuses a past new slot with 409 and leaves the original intact', async () => {
+    appointmentRow = bookableRow(48);
+    const past = cairoDateTime(-26);
+
+    await expect(
+      useCase.execute('app-1', 'patient-1', {
+        date: past.toFormat('yyyy-MM-dd'),
+        newStartTime: '11:00',
+      }),
+    ).rejects.toThrow(ConflictException);
+    expect(savedAppointment).toBeNull();
+    expect(savedEvents).toHaveLength(0);
+  });
+
+  it('refuses a leave date with 404', async () => {
+    appointmentRow = bookableRow(48);
+    const targetDate = cairoDateTime(72).toFormat('yyyy-MM-dd');
+    const pairing = fullPairing();
+    pairing.schedule.leaves = [targetDate];
+    pairingOverride = pairing;
+
+    await expect(
+      useCase.execute('app-1', 'patient-1', {
+        date: targetDate,
+        newStartTime: '11:00',
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(savedAppointment).toBeNull();
+  });
+
+  it('refuses COMPLETED appointments with 400', async () => {
+    appointmentRow = {
+      ...bookableRow(48),
+      status: AppointmentStatus.COMPLETED,
+    };
+
+    await expect(
+      useCase.execute('app-1', 'patient-1', {
+        date: cairoDateTime(72).toFormat('yyyy-MM-dd'),
+        newStartTime: '11:00',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses already-started appointments with 400', async () => {
+    appointmentRow = bookableRow(-2);
+
+    await expect(
+      useCase.execute('app-1', 'patient-1', {
+        date: cairoDateTime(72).toFormat('yyyy-MM-dd'),
+        newStartTime: '11:00',
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 });

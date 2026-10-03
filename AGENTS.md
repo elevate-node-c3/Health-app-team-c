@@ -21,6 +21,7 @@
 - AuthZ: every route needs `@Roles(...)` (`common/decorators/roles.decorator.ts`). `RolesGuard` **denies by default** (no metadata → 403); roles are `GUEST | UNVERIFIED_PATIENT | PATIENT | DOCTOR | ADMIN` from `AuthContextMiddleware` (Bearer JWT or `x-device-id` for guests; `/auth/*` + `/payments/webhook` are the only public paths).
 - Money: `decimal(10,2)` columns, never float. Cards: store only `last4Digits`/brand/expiry — never PAN/CVV. Payments/refunds keyed by `idempotencyKey` (`REFUND-<appointmentId>` pattern).
 - `noImplicitAny: false` in `tsconfig.json`, but requirements demand strict domain code — avoid `any` in `modules/`.
+- No comments in code: never add `//`, `/* */`, JSDoc/TSDoc, TODO/FIXME/NOTE, or commented-out code. Write self-explanatory code with clear names and small functions instead. Do not add comments to explain existing code either.
 
 ## Testing instructions
 - Colocate unit tests as `<name>.spec.ts` next to the use-case/policy (see `booking/use-case/*.spec.ts`, `payment/use-case/*.spec.ts`). Pure rules first: `decideCancellation()` (>, <, exactly 24h, already-started), phone normalize (`010…` → `+20…`), password/OTP limits, `1000 EGP` filter = "1000 and above".

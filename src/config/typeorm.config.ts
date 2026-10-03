@@ -12,6 +12,8 @@ export default registerAs(
     database: process.env.DB_NAME || 'nestjs_db',
     autoLoadEntities: true,
     synchronize: process.env.DB_SYNC === 'true', // false in production, use migrations instead
+    migrations: [__dirname + '/../database/migrations/*{.js,.ts}'],
+    migrationsRun: false, // prod runs migrations via `npm run migration:run`
     logging: process.env.DB_LOGGING === 'true',
   }),
 );

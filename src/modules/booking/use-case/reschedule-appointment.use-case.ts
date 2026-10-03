@@ -234,7 +234,7 @@ export class RescheduleAppointmentUseCase {
     pairing: DoctorClinicEntity,
     dto: RescheduleAppointmentDto,
   ): number {
-    const now = this.cairoNow();
+    const cairoNow = DateTime.now().setZone(CLINIC_TZ);
     const parsed = DateTime.fromISO(dto.date, { zone: CLINIC_TZ });
     if (!parsed.isValid) {
       throw new BadRequestException({
@@ -244,16 +244,17 @@ export class RescheduleAppointmentUseCase {
     }
     const targetWeekday = parsed.weekday % 7;
 
-    const todayStr = this.toDateStr(now);
+    const todayStr = cairoNow.toFormat('yyyy-MM-dd');
     if (dto.date < todayStr) {
       throw new ConflictException({
         code: 'BOOKING_SLOT_UNAVAILABLE',
         messageKey: 'errors.booking.slot_unavailable',
       });
     }
-    const maxDate = new Date(now);
-    maxDate.setDate(maxDate.getDate() + BOOKING_WINDOW_DAYS);
-    if (dto.date > this.toDateStr(maxDate)) {
+    const maxDateStr = cairoNow
+      .plus({ days: BOOKING_WINDOW_DAYS })
+      .toFormat('yyyy-MM-dd');
+    if (dto.date > maxDateStr) {
       throw new BadRequestException({
         code: 'BOOKING_INVALID_SLOT',
         messageKey: 'errors.booking.invalid_slot',
@@ -262,7 +263,7 @@ export class RescheduleAppointmentUseCase {
 
     if (dto.date === todayStr) {
       const [sh, sm] = dto.newStartTime.split(':').map(Number);
-      if (sh * 60 + sm <= now.getHours() * 60 + now.getMinutes()) {
+      if (sh * 60 + sm <= cairoNow.hour * 60 + cairoNow.minute) {
         throw new ConflictException({
           code: 'BOOKING_SLOT_UNAVAILABLE',
           messageKey: 'errors.booking.slot_unavailable',
@@ -294,16 +295,6 @@ export class RescheduleAppointmentUseCase {
       });
     }
     return slotDuration;
-  }
-
-  private cairoNow(): Date {
-    return new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
-    );
-  }
-
-  private toDateStr(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   private generateSlots(start: string, end: string, durationMin: number): string[] {
