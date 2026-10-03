@@ -126,4 +126,24 @@ export class StripeService {
             throw new BadRequestException(`Webhook Error: ${err.message}`);
         }
     }
+
+    async getPaymentIntentStatus(paymentIntentId: string): Promise<{ status: string }> {
+        try {
+            const intent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+            return { status: intent.status ?? 'unknown' };
+        } catch (err: any) {
+            this.logger.error(`Stripe status lookup failed for intent`);
+            return { status: 'unknown' };
+        }
+    }
+
+    async getRefundStatus(refundId: string): Promise<{ status: string }> {
+        try {
+            const refund = await this.stripe.refunds.retrieve(refundId);
+            return { status: refund.status ?? 'unknown' };
+        } catch (err: any) {
+            this.logger.error(`Stripe refund status lookup failed`);
+            return { status: 'unknown' };
+        }
+    }
 }

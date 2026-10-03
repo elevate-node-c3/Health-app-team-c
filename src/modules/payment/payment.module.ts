@@ -16,6 +16,7 @@ import { PaymentTransaction } from './entities/payment-transaction.entity';
 import { DoctorEntity } from '../catalog/entities/doctor.entity';
 import { SlotHoldEntity } from '../booking/entities/slot-hold.entity';
 import { RefundService } from './services/refund.service';
+import { PaymentReconciliationService } from './services/payment-reconciliation.service';
 import { RefundEntity } from './entities/refund.entity';
 import { AppointmentEntity } from '../catalog/entities/appointment.entity';
 
@@ -36,7 +37,8 @@ import { AppointmentEntity } from '../catalog/entities/appointment.entity';
         ProcessPaymentUseCase,
         HandleStripeWebhookUseCase,
         StripeService,
-        RefundService
+        RefundService,
+        PaymentReconciliationService
     ],
     exports: [
         RefundService,
