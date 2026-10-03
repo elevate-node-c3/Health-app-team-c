@@ -2,12 +2,17 @@ import { DataSource } from 'typeorm';
 import { CompleteAppointmentsUseCase } from './complete-appointments.use-case';
 import { AppointmentEntity, AppointmentStatus } from 'src/modules/catalog/entities/appointment.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
+import { DoctorEntity } from 'src/modules/catalog/entities/doctor.entity';
+import { ClinicEntity } from 'src/modules/catalog/entities/clinic.entity';
+import { SpecialtyEntity } from 'src/modules/catalog/entities/specialty.entity';
 
 const enabled = !!process.env.DB_HOST || !!process.env.DB_NAME;
 const describeReal = enabled ? describe : describe.skip;
 
 describeReal('CompleteAppointments concurrency (real Postgres)', () => {
   let ds: DataSource;
+  let doctorId: string;
+  let clinicId: string;
 
   beforeAll(async () => {
     ds = new DataSource({
@@ -17,11 +22,27 @@ describeReal('CompleteAppointments concurrency (real Postgres)', () => {
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'docura',
-      entities: [AppointmentEntity, OutboxEventEntity],
+      entities: [SpecialtyEntity, DoctorEntity, ClinicEntity, AppointmentEntity, OutboxEventEntity],
       synchronize: true,
     });
     await ds.initialize();
-    await ds.query(`TRUNCATE appointments, outbox_events`);
+    await ds.query(`TRUNCATE appointments, outbox_events, doctors, clinics, specialties CASCADE`);
+
+    const specialty = await ds.getRepository(SpecialtyEntity).save({ name: 'Cardiology' });
+    const doctor = await ds.getRepository(DoctorEntity).save({
+      fullName: 'Concurrency Doctor',
+      specialtyId: specialty.id,
+      isActive: true,
+      isVerified: true,
+    });
+    const clinic = await ds.getRepository(ClinicEntity).save({
+      name: 'Concurrency Clinic',
+      governorate: 'Cairo',
+      city: 'Cairo',
+      address: 'Test St',
+    });
+    doctorId = doctor.id;
+    clinicId = clinic.id;
   });
 
   afterAll(async () => {
@@ -31,8 +52,8 @@ describeReal('CompleteAppointments concurrency (real Postgres)', () => {
   it('two parallel completion claims yield exactly one winner', async () => {
     const repo = ds.getRepository(AppointmentEntity);
     const appointment = repo.create({
-      doctorId: '11111111-1111-1111-1111-111111111111',
-      clinicId: '22222222-2222-2222-2222-222222222222',
+      doctorId,
+      clinicId,
       patientId: '33333333-3333-3333-3333-333333333333',
       date: '2026-09-01',
       startTime: '08:00:00',
