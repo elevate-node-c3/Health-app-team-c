@@ -15,5 +15,9 @@ export const validationSchema = Joi.object({
     DB_PASSWORD: Joi.string().required(),
     DB_NAME: Joi.string().required(),
     DB_SYNC: Joi.boolean().default(false),
-    DB_LOGGING: Joi.boolean().default(false)
+    DB_LOGGING: Joi.boolean().default(false),
+
+    PRESCRIPTION_MAX_BYTES: Joi.number().default(5242880),
+    PRESCRIPTION_STORAGE_PATH: Joi.string().default('./storage/prescriptions'),
+    PRESCRIPTION_LINK_TTL_SECONDS: Joi.number().default(300),
 });

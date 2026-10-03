@@ -15,6 +15,7 @@ import { NotificationModule } from "./modules/notification/notification.module";
 import { SearchModule } from "./modules/search/search.module";
 import { PaymentModule } from "./modules/payment/payment.module";
 import { BookingModule } from "./modules/booking/booking.module";
+import { PrescriptionModule } from "./modules/prescription/prescription.module";
 import { AlertService } from "./common/outbox/services/alert.service";
 
 @Global()
@@ -55,6 +56,7 @@ import { AlertService } from "./common/outbox/services/alert.service";
     SearchModule,
     PaymentModule,
     BookingModule,
+    PrescriptionModule,
   ],
 
 

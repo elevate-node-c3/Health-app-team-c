@@ -7,6 +7,7 @@ import { GetUserNotificationsUseCase } from './use-case/get-user-notifications.u
 import { MarkAsReadUseCase } from './use-case/mark-as-read.use-case';
 import { NotificationEntity } from './entities/notification.entity';
 import { FavoriteNotificationConsumer } from './consumers/favorite-notification.consumer';
+import { PrescriptionNotificationConsumer } from './consumers/prescription-notification.consumer';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
 import { MarkAllAsReadUseCase } from './use-case/mark-all-as-read.use-case';
 import { AppointmentEventsConsumer } from './consumers/appointment-notification.consumer';
@@ -17,6 +18,7 @@ import { AppointmentMailService } from 'src/common/mail/appointment-mail.service
 import { ClinicEntity } from '../catalog/entities/clinic.entity';
 import { DoctorEntity } from '../catalog/entities/doctor.entity';
 import { RefundMailService } from 'src/common/mail/refund-mail.service';
+import { PrescriptionEntity } from '../prescription/entities/prescription.entity';
 
 const USE_CASES = [
     SendNotificationUseCase,
@@ -32,12 +34,14 @@ const USE_CASES = [
         UserEntity,
         DoctorEntity,
         ClinicEntity,
+        PrescriptionEntity,
 
     ])],
     controllers: [NotificationController],
     providers: [
         NotificationService,
         FavoriteNotificationConsumer,
+        PrescriptionNotificationConsumer,
         AppointmentEventsConsumer,
         RefundEventsConsumer,
         ReminderNotificationConsumer,
