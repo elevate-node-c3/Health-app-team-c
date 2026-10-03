@@ -11,6 +11,7 @@ import { OutboxModule } from 'src/common/outbox/outbox.module';
 import { CreateHoldUseCase } from './use-case/create-hold.use-case';
 import { ExtendHoldUseCase } from './use-case/extend-hold.use-case';
 import { ReleaseExpiredHoldsUseCase } from './use-case/release-expired-holds.use-case';
+import { CompleteAppointmentsUseCase } from './use-case/complete-appointments.use-case';
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
 import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
 import { AppointmentCancelledConsumer } from './consumer/appiontment-cancle.consumer';
@@ -34,6 +35,7 @@ import { PaymentModule } from '../payment/payment.module';
     CreateHoldUseCase,
     ExtendHoldUseCase,
     ReleaseExpiredHoldsUseCase,
+    CompleteAppointmentsUseCase,
     PreviewCancellationUseCase,
     CancelAppointmentUseCase,
     AppointmentCancelledConsumer,

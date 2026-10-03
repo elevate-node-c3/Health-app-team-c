@@ -69,6 +69,7 @@ export enum AppointmentStatus {
     BOOKED = 'BOOKED',
     CANCELLED = 'CANCELLED',
     COMPLETED = 'COMPLETED',
+    NO_SHOW = 'NO_SHOW',
 }
 
 export enum CancellationOutcome {
@@ -125,6 +126,9 @@ export class AppointmentEntity {
 
     @Column({ type: 'timestamptz', nullable: true })
     completedAt: Date | null;
+
+    @Column({ type: 'timestamptz', nullable: true })
+    noShowAt: Date | null;
 
     @CreateDateColumn()
     createdAt: Date;
