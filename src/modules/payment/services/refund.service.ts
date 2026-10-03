@@ -5,6 +5,7 @@ import { RefundEntity, RefundStatus } from '../entities/refund.entity';
 import { PaymentTransaction, PaymentStatus } from '../entities/payment-transaction.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { StripeService } from './stripe.service';
+import { AlertService } from 'src/common/outbox/services/alert.service';
 
 const MAX_ATTEMPTS = 10;
 const RETRY_AFTER_SECONDS = 60;
@@ -28,6 +29,7 @@ export class RefundService {
     constructor(
         private readonly dataSource: DataSource,
         private readonly stripeService: StripeService,
+        private readonly alertService: AlertService,
     ) { }
 
     async createPendingRefund(
@@ -134,6 +136,97 @@ export class RefundService {
                 this.logger.error(`Retry failed for refund ${refund.id}: ${err.message}`);
             }
         }
+    }
+
+    @Cron(CronExpression.EVERY_HOUR)
+    async checkSettledRefunds(now: Date = new Date()): Promise<number> {
+        let claimedIds: string[] = [];
+
+        try {
+            const rows: { id: string }[] = await this.dataSource.query(
+                `SELECT id FROM refunds WHERE status = 'ISSUED' ORDER BY "issuedAt" ASC LIMIT 20 FOR UPDATE SKIP LOCKED`,
+            );
+            claimedIds = rows.map((r) => r.id);
+        } catch (err: unknown) {
+            const reason = err instanceof Error ? err.message : 'unknown error';
+            this.logger.error(`Refund settlement claim failed: ${reason}`);
+            return 0;
+        }
+
+        if (claimedIds.length === 0) return 0;
+
+        let settled = 0;
+
+        for (const id of claimedIds) {
+            try {
+                const didSettle = await this.dataSource.transaction(async (manager) => {
+                    const refund = await manager
+                        .getRepository(RefundEntity)
+                        .createQueryBuilder('refund')
+                        .setLock('pessimistic_write')
+                        .where('refund.id = :id', { id })
+                        .getOne();
+
+                    if (!refund || refund.status !== RefundStatus.ISSUED) return false;
+                    if (!refund.providerRefundId) return false;
+
+                    let providerStatus = 'unknown';
+                    try {
+                        const result = await this.stripeService.getRefundStatus(refund.providerRefundId);
+                        providerStatus = result.status;
+                    } catch {
+                        return false;
+                    }
+
+                    if (providerStatus === 'succeeded') {
+                        const updated = await manager.getRepository(RefundEntity).update(
+                            { id: refund.id, status: RefundStatus.ISSUED },
+                            { status: RefundStatus.SETTLED, settledAt: now },
+                        );
+                        if (!updated.affected) return false;
+
+                        await manager.getRepository(OutboxEventEntity).save({
+                            aggregateType: 'REFUND',
+                            exchange: 'payment_exchange',
+                            eventType: 'refund.settled',
+                            payload: {
+                                refundId: refund.id,
+                                appointmentId: refund.appointmentId,
+                                settledAt: now,
+                            },
+                        });
+                        return true;
+                    }
+
+                    if (providerStatus === 'failed' || providerStatus === 'canceled') {
+                        const updated = await manager.getRepository(RefundEntity).update(
+                            { id: refund.id, status: RefundStatus.ISSUED },
+                            { status: RefundStatus.FAILED, failureReason: `Provider reports ${providerStatus}` },
+                        );
+                        if (!updated.affected) return false;
+
+                        await this.alertService.notifyRefundFailed({
+                            refundId: refund.id,
+                            appointmentId: refund.appointmentId,
+                            reason: `Provider reports ${providerStatus}`,
+                        });
+                        return true;
+                    }
+
+                    return false;
+                });
+
+                if (didSettle) {
+                    settled += 1;
+                    this.logger.log(`Refund ${id} settlement resolved`);
+                }
+            } catch (err: unknown) {
+                const reason = err instanceof Error ? err.message : 'unknown error';
+                this.logger.error(`Settle refund ${id} failed: ${reason}`);
+            }
+        }
+
+        return settled;
     }
 
     private async markIssued(refund: RefundEntity, userId: string, providerRefundId: string) {
