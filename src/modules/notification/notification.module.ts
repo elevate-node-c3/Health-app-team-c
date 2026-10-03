@@ -11,6 +11,7 @@ import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event
 import { MarkAllAsReadUseCase } from './use-case/mark-all-as-read.use-case';
 import { AppointmentEventsConsumer } from './consumers/appointment-notification.consumer';
 import { RefundEventsConsumer } from './consumers/refund-notification.consumer';
+import { ReminderNotificationConsumer } from './consumers/reminder-notification.consumer';
 import { UserEntity } from '../auth/entities/user.entity';
 import { AppointmentMailService } from 'src/common/mail/appointment-mail.service';
 import { ClinicEntity } from '../catalog/entities/clinic.entity';
@@ -39,6 +40,7 @@ const USE_CASES = [
         FavoriteNotificationConsumer,
         AppointmentEventsConsumer,
         RefundEventsConsumer,
+        ReminderNotificationConsumer,
         AppointmentMailService,
         RefundMailService,
         ...USE_CASES
