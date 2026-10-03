@@ -23,6 +23,14 @@ function cairoDateTime(hoursInFuture: number) {
   return DateTime.now().setZone(ZONE).plus({ hours: hoursInFuture });
 }
 
+function snapToSlot(dt: DateTime) {
+  return dt.set({
+    minute: dt.minute < 30 ? 0 : 30,
+    second: 0,
+    millisecond: 0,
+  });
+}
+
 function fullPairing() {
   const days: Record<string, unknown> = {};
   for (const d of ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) {
@@ -111,11 +119,7 @@ describe('RescheduleAppointmentUseCase', () => {
 
   function bookableRow(hoursInFuture: number) {
     const dt = cairoDateTime(hoursInFuture);
-    const snapped = dt.set({
-      minute: dt.minute < 30 ? 0 : 30,
-      second: 0,
-      millisecond: 0,
-    });
+    const snapped = snapToSlot(dt);
     const start = snapped.toFormat('HH:mm');
     const end = snapped.plus({ minutes: 30 }).toFormat('HH:mm');
     return {
@@ -283,12 +287,7 @@ describe('RescheduleAppointmentUseCase', () => {
 
   it('closes the D2 loophole: 30h+ moved to 2h-away, cancel on NEW start is NO_REFUND', async () => {
     appointmentRow = bookableRow(30);
-    const rawTarget = cairoDateTime(2);
-    const target = rawTarget.set({
-      minute: rawTarget.minute < 30 ? 0 : 30,
-      second: 0,
-      millisecond: 0,
-    });
+    const target = snapToSlot(cairoDateTime(2));
 
     const result = await useCase.execute('app-1', 'patient-1', {
       date: target.toFormat('yyyy-MM-dd'),

@@ -59,10 +59,7 @@ export class RescheduleAppointmentUseCase {
         });
       }
 
-      const decision = decideCancellation(
-        getAppointmentStart(appointment),
-        now,
-      );
+      const decision = decideCancellation(getAppointmentStart(appointment), now);
       if (decision === CancellationDecision.ALREADY_STARTED) {
         throw new BadRequestException({
           code: 'BOOKING_RESCHEDULE_NOT_ALLOWED',
@@ -106,14 +103,10 @@ export class RescheduleAppointmentUseCase {
       const slotDuration = this.assertNewSlotValid(pairing, dto);
 
       const newStart = dto.newStartTime;
-      const newStartFull =
-        newStart.length === 5 ? `${newStart}:00` : newStart;
-      const oldStartFull =
-        appointment.startTime.length === 5
-          ? `${appointment.startTime}:00`
-          : appointment.startTime;
-
-      if (dto.date === appointment.date && newStartFull === oldStartFull) {
+      if (
+        dto.date === appointment.date &&
+        newStart === this.toShortTime(appointment.startTime)
+      ) {
         throw new BadRequestException({
           code: 'BOOKING_RESCHEDULE_SAME_SLOT',
           messageKey: 'errors.booking.reschedule_same_slot',
@@ -137,7 +130,7 @@ export class RescheduleAppointmentUseCase {
         (a) =>
           a.id !== appointment.id &&
           a.status === AppointmentStatus.BOOKED &&
-          a.startTime.substring(0, 5) === newStart,
+          this.toShortTime(a.startTime) === newStart,
       );
       if (taken) {
         throw new ConflictException({
@@ -162,8 +155,8 @@ export class RescheduleAppointmentUseCase {
         .getMany();
       const held = holds.some(
         (h) =>
-          h.startTime.substring(0, 5) === newStart &&
-          new Date(h.expiresAt).getTime() > now.getTime(),
+          this.toShortTime(h.startTime) === newStart &&
+          new Date(h.expiresAt) > now,
       );
       if (held) {
         throw new ConflictException({
@@ -173,7 +166,7 @@ export class RescheduleAppointmentUseCase {
       }
 
       const oldDate = appointment.date;
-      const oldStartTime = appointment.startTime.substring(0, 5);
+      const oldStartTime = this.toShortTime(appointment.startTime);
 
       appointment.date = dto.date;
       appointment.startTime = newStart;
@@ -222,8 +215,8 @@ export class RescheduleAppointmentUseCase {
         oldDate,
         oldStartTime,
         date: appointment.date,
-        startTime: appointment.startTime.substring(0, 5),
-        endTime: appointment.endTime.substring(0, 5),
+        startTime: this.toShortTime(appointment.startTime),
+        endTime: this.toShortTime(appointment.endTime),
         rescheduleCount: appointment.rescheduleCount,
         rescheduledAt: now,
       };
@@ -262,8 +255,8 @@ export class RescheduleAppointmentUseCase {
     }
 
     if (dto.date === todayStr) {
-      const [sh, sm] = dto.newStartTime.split(':').map(Number);
-      if (sh * 60 + sm <= cairoNow.hour * 60 + cairoNow.minute) {
+      const nowMinutes = cairoNow.hour * 60 + cairoNow.minute;
+      if (this.toMinutes(dto.newStartTime) <= nowMinutes) {
         throw new ConflictException({
           code: 'BOOKING_SLOT_UNAVAILABLE',
           messageKey: 'errors.booking.slot_unavailable',
@@ -299,22 +292,31 @@ export class RescheduleAppointmentUseCase {
 
   private generateSlots(start: string, end: string, durationMin: number): string[] {
     const slots: string[] = [];
-    const [startH, startM] = start.split(':').map(Number);
-    const [endH, endM] = end.split(':').map(Number);
-    let current = startH * 60 + startM;
-    const endTotal = endH * 60 + endM;
+    let current = this.toMinutes(start);
+    const endTotal = this.toMinutes(end);
     while (current + durationMin <= endTotal) {
-      slots.push(
-        `${String(Math.floor(current / 60)).padStart(2, '0')}:${String(current % 60).padStart(2, '0')}`,
-      );
+      slots.push(this.formatMinutes(current));
       current += durationMin;
     }
     return slots;
   }
 
   private addMinutes(time: string, minutes: number): string {
+    return this.formatMinutes(this.toMinutes(time) + minutes);
+  }
+
+  private toMinutes(time: string): number {
     const [h, m] = time.split(':').map(Number);
-    const total = h * 60 + m + minutes;
-    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    return h * 60 + m;
+  }
+
+  private formatMinutes(total: number): string {
+    const h = String(Math.floor(total / 60)).padStart(2, '0');
+    const m = String(total % 60).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
+  private toShortTime(time: string): string {
+    return time.substring(0, 5);
   }
 }

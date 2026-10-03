@@ -30,25 +30,19 @@ describeReal('Reschedule concurrency (real Postgres)', () => {
     await ds.initialize();
     await ds.query(`TRUNCATE appointments`);
 
-    const specialty = await ds.getRepository(SpecialtyEntity).save(
-      ds
-        .getRepository(SpecialtyEntity)
-        .create({ name: `resched-concurrency-${Date.now()}` }),
-    );
-    const doctor = await ds.getRepository(DoctorEntity).save(
-      ds.getRepository(DoctorEntity).create({
-        fullName: 'Concurrency Doctor',
-        specialtyId: specialty.id,
-      }),
-    );
-    const clinic = await ds.getRepository(ClinicEntity).save(
-      ds.getRepository(ClinicEntity).create({
-        name: 'Concurrency Clinic',
-        governorate: 'Cairo',
-        city: 'Cairo',
-        address: '1 Test St',
-      }),
-    );
+    const specialty = await ds
+      .getRepository(SpecialtyEntity)
+      .save({ name: `resched-concurrency-${Date.now()}` });
+    const doctor = await ds.getRepository(DoctorEntity).save({
+      fullName: 'Concurrency Doctor',
+      specialtyId: specialty.id,
+    });
+    const clinic = await ds.getRepository(ClinicEntity).save({
+      name: 'Concurrency Clinic',
+      governorate: 'Cairo',
+      city: 'Cairo',
+      address: '1 Test St',
+    });
     doctorId = doctor.id;
     clinicId = clinic.id;
   });
@@ -68,8 +62,8 @@ describeReal('Reschedule concurrency (real Postgres)', () => {
     };
     const repo = ds.getRepository(AppointmentEntity);
     const results = await Promise.allSettled([
-      repo.save(repo.create({ ...base, patientId: randomUUID() })),
-      repo.save(repo.create({ ...base, patientId: randomUUID() })),
+      repo.save({ ...base, patientId: randomUUID() }),
+      repo.save({ ...base, patientId: randomUUID() }),
     ]);
     const ok = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter(
