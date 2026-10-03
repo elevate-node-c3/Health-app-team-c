@@ -13,6 +13,7 @@ import { ExtendHoldUseCase } from './use-case/extend-hold.use-case';
 import { ReleaseExpiredHoldsUseCase } from './use-case/release-expired-holds.use-case';
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
 import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
+import { RescheduleAppointmentUseCase } from './use-case/reschedule-appointment.use-case';
 import { AppointmentCancelledConsumer } from './consumer/appiontment-cancle.consumer';
 import { PaymentModule } from '../payment/payment.module';
 
@@ -36,6 +37,7 @@ import { PaymentModule } from '../payment/payment.module';
     ReleaseExpiredHoldsUseCase,
     PreviewCancellationUseCase,
     CancelAppointmentUseCase,
+    RescheduleAppointmentUseCase,
     AppointmentCancelledConsumer,
   ],
 })

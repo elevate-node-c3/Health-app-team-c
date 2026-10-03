@@ -112,7 +112,7 @@ describe('CancelAppointmentUseCase', () => {
         });
 
         it('should throw BadRequestException if appointment has already started', async () => {
-            const startDate = createPastDate(1); // بدأ قبل ساعة
+            const startDate = createPastDate(1);
             const repo = entityManager.getRepository(AppointmentEntity);
             (repo.createQueryBuilder().getOne as jest.Mock).mockResolvedValue({
                 id: mockAppointmentId,
