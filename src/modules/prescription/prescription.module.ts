@@ -9,6 +9,7 @@ import { LocalPrescriptionStorageService } from './local-prescription-storage.se
 import { PRESCRIPTION_STORAGE } from './prescription-storage.interface';
 import { AttachPrescriptionUseCase } from './use-case/attach-prescription.use-case';
 import { ReplacePrescriptionUseCase } from './use-case/replace-prescription.use-case';
+import { PurgePatientPrescriptionsUseCase } from './use-case/purge-patient-prescriptions.use-case';
 
 @Module({
   imports: [TypeOrmModule.forFeature([PrescriptionEntity, AppointmentEntity, OutboxEventEntity])],
@@ -17,8 +18,10 @@ import { ReplacePrescriptionUseCase } from './use-case/replace-prescription.use-
     PrescriptionService,
     AttachPrescriptionUseCase,
     ReplacePrescriptionUseCase,
+    PurgePatientPrescriptionsUseCase,
     LocalPrescriptionStorageService,
     { provide: PRESCRIPTION_STORAGE, useExisting: LocalPrescriptionStorageService },
   ],
+  exports: [PurgePatientPrescriptionsUseCase],
 })
 export class PrescriptionModule {}
