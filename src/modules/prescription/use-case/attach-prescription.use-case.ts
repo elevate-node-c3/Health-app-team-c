@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException, PayloadTooLargeException, UnprocessableEntityException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import { AppointmentEntity } from 'src/modules/catalog/entities/appointment.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
@@ -22,6 +23,8 @@ export class AttachPrescriptionUseCase {
     @Inject(PRESCRIPTION_STORAGE)
     private readonly storage: PrescriptionStorage,
     private readonly outboxProcessor: OutboxProcessorService,
+    @InjectRepository(PrescriptionEntity)
+    private readonly prescriptions: Repository<PrescriptionEntity>,
   ) {}
 
   async execute(appointmentId: string, fileBuffer: Buffer, adminId: string): Promise<PrescriptionEntity> {
@@ -39,6 +42,15 @@ export class AttachPrescriptionUseCase {
         code: 'PRESCRIPTION_INVALID_TYPE',
         messageKey: 'errors.prescription.invalid_type',
         message: 'Only PDF, PNG or JPEG prescriptions are accepted',
+      });
+    }
+
+    const existing = await this.prescriptions.findOne({ where: { appointmentId } });
+    if (existing) {
+      throw new ConflictException({
+        code: 'PRESCRIPTION_ALREADY_EXISTS',
+        messageKey: 'errors.prescription.already_exists',
+        message: 'A prescription already exists for this appointment',
       });
     }
 

@@ -62,9 +62,9 @@ describe('Prescription tracer (ENG-6 Task 1)', () => {
     };
     const dataSource = { transaction: jest.fn((cb) => cb(manager)) } as never;
     const outboxProcessor = { triggerPublish: jest.fn().mockResolvedValue(undefined) } as never;
+    const existingCheck = { findOne: jest.fn().mockResolvedValue(null) };
 
-    useCase = new AttachPrescriptionUseCase(dataSource, storage, outboxProcessor);
-    (useCase as unknown as { prescriptionRepoForTracer: unknown }).prescriptionRepoForTracer = prescriptionRepo;
+    useCase = new AttachPrescriptionUseCase(dataSource, storage, outboxProcessor, existingCheck as never);
   });
 
   afterEach(() => {
@@ -137,6 +137,7 @@ describe('Prescription tracer (ENG-6 Task 1)', () => {
       appointmentsRepo as never,
       storage,
       useCase,
+      { execute: jest.fn() } as never,
     );
 
     const link = await service.linkFor(patientId, 'PATIENT', appointmentId);

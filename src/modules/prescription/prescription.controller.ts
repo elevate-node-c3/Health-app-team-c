@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Param, PayloadTooLargeException, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Param, PayloadTooLargeException, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
@@ -38,6 +38,51 @@ export class PrescriptionController {
       );
       return {
         message: 'prescription.attached',
+        data: {
+          prescriptionId: prescription.id,
+          appointmentId: prescription.appointmentId,
+          mimeType: prescription.mimeType,
+          sizeBytes: prescription.sizeBytes,
+          uploadedAt: prescription.uploadedAt,
+        },
+      };
+    } catch (err) {
+      if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'LIMIT_FILE_SIZE') {
+        throw new PayloadTooLargeException({
+          code: 'PRESCRIPTION_TOO_LARGE',
+          messageKey: 'errors.prescription.too_large',
+          message: 'Prescription file exceeds the size limit',
+        });
+      }
+      throw err;
+    }
+  }
+
+  @Put('appointments/:appointmentId/file')
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: prescriptionMaxBytes() } }))
+  async replace(
+    @Param() params: PrescriptionParamsDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req,
+  ) {
+    if (!file) {
+      throw new BadRequestException({
+        code: 'PRESCRIPTION_FILE_REQUIRED',
+        messageKey: 'errors.prescription.file_required',
+        message: 'A prescription file is required',
+      });
+    }
+    try {
+      const prescription = await this.prescriptionService.replaceFor(
+        req.userContext.userId,
+        params.appointmentId,
+        file.buffer,
+      );
+      return {
+        message: 'prescription.replaced',
         data: {
           prescriptionId: prescription.id,
           appointmentId: prescription.appointmentId,

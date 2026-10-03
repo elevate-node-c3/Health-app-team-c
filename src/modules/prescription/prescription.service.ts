@@ -6,6 +6,7 @@ import { AppointmentEntity } from 'src/modules/catalog/entities/appointment.enti
 import { PrescriptionEntity } from './entities/prescription.entity';
 import { PRESCRIPTION_STORAGE, PrescriptionStorage } from './prescription-storage.interface';
 import { AttachPrescriptionUseCase } from './use-case/attach-prescription.use-case';
+import { ReplacePrescriptionUseCase } from './use-case/replace-prescription.use-case';
 import { PrescriptionLinkDto } from './dto/prescription-link.dto';
 import { PrescriptionMetadataDto } from './dto/prescription-metadata.dto';
 
@@ -68,10 +69,15 @@ export class PrescriptionService {
     @Inject(PRESCRIPTION_STORAGE)
     private readonly storage: PrescriptionStorage,
     private readonly attach: AttachPrescriptionUseCase,
+    private readonly replace: ReplacePrescriptionUseCase,
   ) {}
 
   attachFor(adminId: string, appointmentId: string, fileBuffer: Buffer): Promise<PrescriptionEntity> {
     return this.attach.execute(appointmentId, fileBuffer, adminId);
+  }
+
+  replaceFor(adminId: string, appointmentId: string, fileBuffer: Buffer): Promise<PrescriptionEntity> {
+    return this.replace.execute(appointmentId, fileBuffer, adminId);
   }
 
   async metadataFor(requesterId: string | undefined, role: string, appointmentId: string): Promise<PrescriptionMetadataDto> {
