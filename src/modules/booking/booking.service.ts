@@ -4,6 +4,8 @@ import { ExtendHoldUseCase } from './use-case/extend-hold.use-case';
 import { CreateHoldDto } from './dto/create-hold.dto';
 import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
+import { RescheduleAppointmentUseCase } from './use-case/reschedule-appointment.use-case';
+import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 
 @Injectable()
 export class BookingService {
@@ -12,6 +14,7 @@ export class BookingService {
     private readonly extendHold: ExtendHoldUseCase,
     private readonly previewCancel: PreviewCancellationUseCase,
     private readonly cancelAppointment: CancelAppointmentUseCase,
+    private readonly rescheduleAppointment: RescheduleAppointmentUseCase,
   ) { }
 
   createHoldFor(patientId: string, dto: CreateHoldDto) {
@@ -28,6 +31,14 @@ export class BookingService {
 
   cancelAppointmentFor(patientId: string, appointmentId: string) {
     return this.cancelAppointment.execute(appointmentId, patientId);
+  }
+
+  rescheduleAppointmentFor(
+    patientId: string,
+    appointmentId: string,
+    dto: RescheduleAppointmentDto,
+  ) {
+    return this.rescheduleAppointment.execute(appointmentId, patientId, dto);
   }
 
 }

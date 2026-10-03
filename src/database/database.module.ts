@@ -10,7 +10,6 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
       useFactory: (configService: ConfigService) => ({
         ...configService.get<TypeOrmModuleOptions>('database')!,
         autoLoadEntities: true,
-        synchronize: true,
       }),
     }),
   ],
