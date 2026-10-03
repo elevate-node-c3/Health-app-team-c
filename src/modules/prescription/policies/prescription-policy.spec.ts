@@ -23,7 +23,12 @@ describe('PrescriptionPolicy', () => {
 
     it('refuses truncated magic bytes', () => {
       expect(detectAllowedMime(Buffer.from([0x25, 0x50]))).toBeNull();
+      expect(detectAllowedMime(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a]))).toBeNull();
       expect(detectAllowedMime(Buffer.from([]))).toBeNull();
+    });
+
+    it('accepts the minimal three-byte JPEG magic', () => {
+      expect(detectAllowedMime(Buffer.from([0xff, 0xd8, 0xff]))).toBe('image/jpeg');
     });
 
     it('maps each mime to its server-side extension', () => {
