@@ -13,6 +13,9 @@ import { CreateHoldUseCase } from './use-case/create-hold.use-case';
 import { ExtendHoldUseCase } from './use-case/extend-hold.use-case';
 import { ReleaseExpiredHoldsUseCase } from './use-case/release-expired-holds.use-case';
 import { CompleteAppointmentsUseCase } from './use-case/complete-appointments.use-case';
+import { SendDueRemindersUseCase } from './use-case/send-due-reminders.use-case';
+import { AppointmentReminderService } from './services/appointment-reminder.service';
+import { AppointmentReminderSchedulingConsumer } from './consumer/appointment-reminder-scheduling.consumer';
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
 import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
 import { AppointmentCancelledConsumer } from './consumer/appiontment-cancle.consumer';
@@ -38,6 +41,9 @@ import { PaymentModule } from '../payment/payment.module';
     ExtendHoldUseCase,
     ReleaseExpiredHoldsUseCase,
     CompleteAppointmentsUseCase,
+    SendDueRemindersUseCase,
+    AppointmentReminderService,
+    AppointmentReminderSchedulingConsumer,
     PreviewCancellationUseCase,
     CancelAppointmentUseCase,
     AppointmentCancelledConsumer,

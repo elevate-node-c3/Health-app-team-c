@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { CancelAppointmentUseCase } from './cancel-appointment.use-case';
 import { RefundService } from 'src/modules/payment/services/refund.service';
+import { AppointmentReminderService } from '../services/appointment-reminder.service';
 import {
     AppointmentEntity,
     AppointmentStatus,
@@ -58,11 +59,18 @@ describe('CancelAppointmentUseCase', () => {
             processRefund: jest.fn().mockResolvedValue(undefined),
         };
 
+        const mockReminderService = {
+            cancelForAppointment: jest.fn().mockResolvedValue(undefined),
+            scheduleForBooking: jest.fn(),
+            moveForReschedule: jest.fn(),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 CancelAppointmentUseCase,
                 { provide: DataSource, useValue: mockDataSource },
                 { provide: RefundService, useValue: mockRefundService },
+                { provide: AppointmentReminderService, useValue: mockReminderService },
             ],
         }).compile();
 
