@@ -1,78 +1,81 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, LessThan } from 'typeorm';
-import {
-  SlotHoldEntity,
-  SlotHoldStatus,
-} from '../entities/slot-hold.entity';
+import { DataSource } from 'typeorm';
+import { SlotHoldEntity, SlotHoldStatus } from '../entities/slot-hold.entity';
 import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
 
 @Injectable()
 export class ReleaseExpiredHoldsUseCase {
   private readonly logger = new Logger(ReleaseExpiredHoldsUseCase.name);
 
-  constructor(
-    @InjectRepository(SlotHoldEntity)
-    private readonly holdRepo: Repository<SlotHoldEntity>,
-    private readonly dataSource: DataSource,
-  ) { }
+  constructor(private readonly dataSource: DataSource) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
-  async execute(): Promise<number> {
-    const expired = await this.holdRepo.find({
-      where: {
-        status: SlotHoldStatus.ACTIVE,
-        expiresAt: LessThan(new Date()),
-      },
-      take: 50,
-      order: { expiresAt: 'ASC' },
-    });
+  async execute(now: Date = new Date()): Promise<number> {
+    let claimedIds: string[] = [];
 
-    if (expired.length === 0) return 0;
+    try {
+      const rows: { id: string }[] = await this.dataSource.query(
+        `SELECT id FROM slot_holds WHERE status = 'ACTIVE' AND "expiresAt" < $1 ORDER BY "expiresAt" ASC LIMIT 50 FOR UPDATE SKIP LOCKED`,
+        [now.toISOString()],
+      );
+      claimedIds = rows.map((r) => r.id);
+    } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : 'unknown error';
+      this.logger.error(`Hold release claim failed: ${reason}`);
+      return 0;
+    }
 
-    for (const hold of expired) {
-      const queryRunner = this.dataSource.createQueryRunner();
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
+    if (claimedIds.length === 0) return 0;
+
+    let released = 0;
+
+    for (const id of claimedIds) {
       try {
-        const fresh = await queryRunner.manager.findOne(SlotHoldEntity, {
-          where: { id: hold.id, status: SlotHoldStatus.ACTIVE },
+        const didRelease = await this.dataSource.transaction(async (manager) => {
+          const hold = await manager
+            .getRepository(SlotHoldEntity)
+            .createQueryBuilder('hold')
+            .setLock('pessimistic_write')
+            .where('hold.id = :id', { id })
+            .getOne();
+
+          if (!hold || hold.status !== SlotHoldStatus.ACTIVE) return false;
+          if (new Date(hold.expiresAt).getTime() >= now.getTime()) return false;
+
+          hold.status = SlotHoldStatus.EXPIRED;
+          await manager.getRepository(SlotHoldEntity).save(hold);
+
+          await manager.getRepository(OutboxEventEntity).save({
+            aggregateType: 'SLOT_HOLD',
+            exchange: 'appointment_exchange',
+            eventType: 'HOLD_EXPIRED',
+            payload: {
+              holdId: hold.id,
+              patientId: hold.patientId,
+              doctorId: hold.doctorId,
+              clinicId: hold.clinicId,
+              date: hold.date,
+              startTime:
+                typeof hold.startTime === 'string'
+                  ? hold.startTime.substring(0, 5)
+                  : hold.startTime,
+            },
+          });
+
+          return true;
         });
-        if (!fresh || new Date(fresh.expiresAt).getTime() >= Date.now()) {
-          await queryRunner.rollbackTransaction();
-          continue;
+
+        if (didRelease) {
+          released += 1;
+          this.logger.log(`Hold ${id} expired and released`);
         }
-
-        fresh.status = SlotHoldStatus.EXPIRED;
-        await queryRunner.manager.save(fresh);
-
-        queryRunner.manager.create(OutboxEventEntity, {
-          aggregateType: 'SLOT_HOLD',
-          aggregateId: fresh.id,
-          exchange: 'appointment_exchange',
-          eventType: 'hold.expired',
-          payload: {
-            holdId: fresh.id,
-            patientId: fresh.patientId,
-            doctorId: fresh.doctorId,
-            clinicId: fresh.clinicId,
-            date: fresh.date,
-            startTime: fresh.startTime.substring(0, 5),
-          },
-          isProcessed: false,
-        }),
-
-          await queryRunner.commitTransaction();
       } catch (err: unknown) {
-        await queryRunner.rollbackTransaction();
         const reason = err instanceof Error ? err.message : 'unknown error';
-        this.logger.error(`Release hold ${hold.id} failed: ${reason}`);
-      } finally {
-        await queryRunner.release();
+        this.logger.error(`Release hold ${id} failed: ${reason}`);
       }
     }
 
-    return expired.length;
+    return released;
   }
 }

@@ -16,6 +16,7 @@ import { CancellationDecision, decideCancellation } from '../policies/cancellati
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { CancelAppointmentResponseDto } from '../dto/cancel-appointment.dto';
 import { getAppointmentStart } from '../helpers/appiontment-time';
+import { AppointmentReminderService } from '../services/appointment-reminder.service';
 
 const FREE_MESSAGE = 'Cancelled successfully! No fees will be charged.';
 const NO_REFUND_MESSAGE =
@@ -28,6 +29,7 @@ export class CancelAppointmentUseCase {
     constructor(
         private readonly dataSource: DataSource,
         private readonly refundService: RefundService,
+        private readonly reminderService: AppointmentReminderService,
     ) { }
 
     async execute(
@@ -79,6 +81,8 @@ export class CancelAppointmentUseCase {
             appointment.cancelledAt = now;
             appointment.cancellationOutcome = outcome;
             await manager.getRepository(AppointmentEntity).save(appointment);
+
+            await this.reminderService.cancelForAppointment(manager, appointment.id);
 
             let refundStatus: 'NOT_APPLICABLE' | 'PENDING' = 'NOT_APPLICABLE';
             let refundId: string | null = null;

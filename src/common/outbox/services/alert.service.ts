@@ -48,4 +48,37 @@ export class AlertService {
             this.logger.error(`Failed to send Slack alert: ${err.message}`);
         }
     }
+
+    async notifyReconciliation(context: { paymentTxId: string; holdId: string; reason: string }) {
+        this.logger.error(`[ALERT] Reconciliation needed: ${JSON.stringify(context)}`);
+        await this.sendSlack(
+            `*Payment reconciliation*\n` +
+            `• Tx: \`${context.paymentTxId}\`\n` +
+            `• Hold: \`${context.holdId}\`\n` +
+            `• Reason: ${context.reason}`,
+        );
+    }
+
+    async notifyRefundFailed(context: { refundId: string; appointmentId: string; reason: string }) {
+        this.logger.error(`[ALERT] Refund failed: ${JSON.stringify(context)}`);
+        await this.sendSlack(
+            `*Refund failed*\n` +
+            `• Refund: \`${context.refundId}\`\n` +
+            `• Appointment: \`${context.appointmentId}\`\n` +
+            `• Reason: ${context.reason}`,
+        );
+    }
+
+    private async sendSlack(text: string) {
+        if (!this.slackWebhookUrl) return;
+        try {
+            await fetch(this.slackWebhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+        } catch (err: any) {
+            this.logger.error(`Failed to send Slack alert: ${err.message}`);
+        }
+    }
 }
