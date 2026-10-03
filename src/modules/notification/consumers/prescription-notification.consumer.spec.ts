@@ -44,6 +44,15 @@ describe('PrescriptionNotificationConsumer (ENG-6 Task 3)', () => {
     expect(sendNotification.execute).not.toHaveBeenCalled();
   });
 
+  it('a transient claim failure dead-letters instead of silently skipping', async () => {
+    processed.insert.mockRejectedValueOnce(new Error('claim db down'));
+
+    const result = await consumer.handleIssued(payload, amqpMsg('evt-2'));
+
+    expect(result).toBeInstanceOf(Nack);
+    expect(sendNotification.execute).not.toHaveBeenCalled();
+  });
+
   it('a consumer failure dead-letters without touching the prescription', async () => {
     sendNotification.execute.mockRejectedValueOnce(new Error('inbox db down'));
 

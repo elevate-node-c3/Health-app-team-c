@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Param, PayloadTooLargeException, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
@@ -7,6 +7,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserStatus } from 'src/modules/auth/entities/user.entity';
 import { PrescriptionService } from './prescription.service';
 import { PrescriptionParamsDto } from './dto/prescription-params.dto';
+import { PrescriptionFileInterceptor } from './prescription-file.interceptor';
 import { prescriptionMaxBytes } from './use-case/attach-prescription.use-case';
 
 @Controller('prescriptions')
@@ -17,7 +18,7 @@ export class PrescriptionController {
   @UseGuards(RolesGuard)
   @Roles(UserStatus.ADMIN)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: prescriptionMaxBytes() } }))
+  @UseInterceptors(PrescriptionFileInterceptor, FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: prescriptionMaxBytes() } }))
   async attach(
     @Param() params: PrescriptionParamsDto,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -30,39 +31,28 @@ export class PrescriptionController {
         message: 'A prescription file is required',
       });
     }
-    try {
-      const prescription = await this.prescriptionService.attachFor(
-        req.userContext.userId,
-        params.appointmentId,
-        file.buffer,
-      );
-      return {
-        message: 'prescription.attached',
-        data: {
-          prescriptionId: prescription.id,
-          appointmentId: prescription.appointmentId,
-          mimeType: prescription.mimeType,
-          sizeBytes: prescription.sizeBytes,
-          uploadedAt: prescription.uploadedAt,
-        },
-      };
-    } catch (err) {
-      if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'LIMIT_FILE_SIZE') {
-        throw new PayloadTooLargeException({
-          code: 'PRESCRIPTION_TOO_LARGE',
-          messageKey: 'errors.prescription.too_large',
-          message: 'Prescription file exceeds the size limit',
-        });
-      }
-      throw err;
-    }
+    const prescription = await this.prescriptionService.attachFor(
+      req.userContext.userId,
+      params.appointmentId,
+      file.buffer,
+    );
+    return {
+      message: 'prescription.attached',
+      data: {
+        prescriptionId: prescription.id,
+        appointmentId: prescription.appointmentId,
+        mimeType: prescription.mimeType,
+        sizeBytes: prescription.sizeBytes,
+        uploadedAt: prescription.uploadedAt,
+      },
+    };
   }
 
   @Put('appointments/:appointmentId/file')
   @UseGuards(RolesGuard)
   @Roles(UserStatus.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: prescriptionMaxBytes() } }))
+  @UseInterceptors(PrescriptionFileInterceptor, FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: prescriptionMaxBytes() } }))
   async replace(
     @Param() params: PrescriptionParamsDto,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -75,32 +65,21 @@ export class PrescriptionController {
         message: 'A prescription file is required',
       });
     }
-    try {
-      const prescription = await this.prescriptionService.replaceFor(
-        req.userContext.userId,
-        params.appointmentId,
-        file.buffer,
-      );
-      return {
-        message: 'prescription.replaced',
-        data: {
-          prescriptionId: prescription.id,
-          appointmentId: prescription.appointmentId,
-          mimeType: prescription.mimeType,
-          sizeBytes: prescription.sizeBytes,
-          uploadedAt: prescription.uploadedAt,
-        },
-      };
-    } catch (err) {
-      if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'LIMIT_FILE_SIZE') {
-        throw new PayloadTooLargeException({
-          code: 'PRESCRIPTION_TOO_LARGE',
-          messageKey: 'errors.prescription.too_large',
-          message: 'Prescription file exceeds the size limit',
-        });
-      }
-      throw err;
-    }
+    const prescription = await this.prescriptionService.replaceFor(
+      req.userContext.userId,
+      params.appointmentId,
+      file.buffer,
+    );
+    return {
+      message: 'prescription.replaced',
+      data: {
+        prescriptionId: prescription.id,
+        appointmentId: prescription.appointmentId,
+        mimeType: prescription.mimeType,
+        sizeBytes: prescription.sizeBytes,
+        uploadedAt: prescription.uploadedAt,
+      },
+    };
   }
 
   @Get('appointments/:appointmentId')

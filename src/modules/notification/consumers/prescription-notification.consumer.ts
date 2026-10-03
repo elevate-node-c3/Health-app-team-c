@@ -43,9 +43,13 @@ export class PrescriptionNotificationConsumer {
     if (eventId) {
       try {
         await this.processed.insert({ eventId, eventType: 'PRESCRIPTION_ISSUED' });
-      } catch {
-        this.logger.warn(`[Idempotency] Event ${eventId} already processed — skipping duplicate notification.`);
-        return;
+      } catch (err) {
+        if ((err as { code?: string })?.code === '23505') {
+          this.logger.warn(`[Idempotency] Event ${eventId} already processed — skipping duplicate notification.`);
+          return;
+        }
+        this.logger.error(`Prescription claim insert failed for event ${eventId}: ${(err as Error).message}`);
+        return new Nack(false);
       }
     }
 

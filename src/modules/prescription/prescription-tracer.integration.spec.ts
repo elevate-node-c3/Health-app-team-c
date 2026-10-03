@@ -9,7 +9,7 @@ import { AttachPrescriptionUseCase } from './use-case/attach-prescription.use-ca
 import { PrescriptionService, mintDownloadToken, verifyDownloadToken } from './prescription.service';
 import { PrescriptionNotificationConsumer } from 'src/modules/notification/consumers/prescription-notification.consumer';
 
-describe('Prescription tracer (ENG-6 Task 1)', () => {
+describe('Prescription tracer (ENG-6 Task 1, mocked persistence)', () => {
   const appointmentId = '11111111-1111-4111-8111-111111111111';
   const patientId = '22222222-2222-4222-8222-222222222222';
   const adminId = '33333333-3333-4333-8333-333333333333';
@@ -19,6 +19,9 @@ describe('Prescription tracer (ENG-6 Task 1)', () => {
   let storage: LocalPrescriptionStorageService;
   let savedOutbox: { exchange: string; eventType: string; payload: Record<string, unknown> } | null;
   let useCase: AttachPrescriptionUseCase;
+  let manager: { getRepository: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
+  let outboxProcessor: { triggerPublish: jest.Mock };
 
   const completedAppointment = {
     id: appointmentId,
@@ -53,18 +56,19 @@ describe('Prescription tracer (ENG-6 Task 1)', () => {
         return Promise.resolve({ ...row, id: '77777777-7777-4777-8777-777777777777' });
       }),
     };
-    const manager = {
+    const managerValue = {
       getRepository: jest.fn((entity) => {
         if (entity === OutboxEventEntity) return outboxRepo;
         if (entity === PrescriptionEntity) return prescriptionRepo;
         return appointmentRepo;
       }),
     };
-    const dataSource = { transaction: jest.fn((cb) => cb(manager)) } as never;
-    const outboxProcessor = { triggerPublish: jest.fn().mockResolvedValue(undefined) } as never;
+    manager = managerValue;
+    dataSource = { transaction: jest.fn((cb) => cb(manager)) };
+    outboxProcessor = { triggerPublish: jest.fn().mockResolvedValue(undefined) };
     const existingCheck = { findOne: jest.fn().mockResolvedValue(null) };
 
-    useCase = new AttachPrescriptionUseCase(dataSource, storage, outboxProcessor, existingCheck as never);
+    useCase = new AttachPrescriptionUseCase(dataSource as never, storage, outboxProcessor as never, existingCheck as never);
   });
 
   afterEach(() => {
@@ -95,6 +99,42 @@ describe('Prescription tracer (ENG-6 Task 1)', () => {
         issuedBy: adminId,
       }),
     );
+
+    const scopedEntities = manager.getRepository.mock.calls.map(([entity]) => entity);
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(scopedEntities).toContain(PrescriptionEntity);
+    expect(scopedEntities).toContain(OutboxEventEntity);
+    expect(outboxProcessor.triggerPublish).toHaveBeenCalledWith('77777777-7777-4777-8777-777777777777');
+  });
+
+  it('a failed event write fails the upload and cleans the file', async () => {
+    const failingManager = {
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === OutboxEventEntity) {
+          return { save: jest.fn().mockRejectedValue(new Error('outbox down')) };
+        }
+        if (entity === PrescriptionEntity) {
+          return { save: jest.fn().mockImplementation((row) => Promise.resolve({ ...row, id: 'p-1' })) };
+        }
+        return {
+          createQueryBuilder: jest.fn().mockReturnValue({
+            setLock: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            getOne: jest.fn().mockResolvedValue(completedAppointment),
+          }),
+        };
+      }),
+    };
+    const failingDataSource = { transaction: jest.fn((cb: (m: unknown) => unknown) => cb(failingManager)) };
+    const failing = new AttachPrescriptionUseCase(
+      failingDataSource as never,
+      storage,
+      outboxProcessor as never,
+      { findOne: jest.fn().mockResolvedValue(null) } as never,
+    );
+
+    await expect(failing.execute(appointmentId, pdfBuffer, adminId)).rejects.toThrow('outbox down');
+    expect(outboxProcessor.triggerPublish).not.toHaveBeenCalled();
   });
 
   it('consumer creates the patient inbox entry and the download link streams identical bytes', async () => {
