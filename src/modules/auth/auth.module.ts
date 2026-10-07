@@ -27,7 +27,9 @@ import { SessionRabbitMQConsumer } from './consumers/session-rabbitmq.consumer';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from 'src/common/outbox/services/outbox-processor.service';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
-import { AlertService } from 'src/common/outbox/services/alert.service';
+import { OutboxModule } from 'src/common/outbox/outbox.module';
+import { MigrateGuestConversationsUseCase } from '../ai-assistant/use-cases/migrate-guest-conversations.use-case';
+import { AiConversationEntity } from '../ai-assistant/entities/ai-conversation.entity';
 
 @Global()
 @Module({
@@ -40,10 +42,12 @@ import { AlertService } from 'src/common/outbox/services/alert.service';
             RefreshTokenEntity,
             OutboxEventEntity,
             ProcessedEventEntity,
+            AiConversationEntity,
         ]),
         JwtModule.register({
             global: false,
         }),
+        OutboxModule,
     ],
     controllers: [AuthController],
     providers: [
@@ -64,8 +68,7 @@ import { AlertService } from 'src/common/outbox/services/alert.service';
         AuthRabbitMQConsumer,
         GuestPromotionConsumer,
         SessionRabbitMQConsumer,
-        OutboxProcessorService,
-        AlertService,
+        MigrateGuestConversationsUseCase
     ],
     exports: [AuthService, AuthTokenService, TokenUtils],
 })

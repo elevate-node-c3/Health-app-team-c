@@ -14,6 +14,7 @@ import { TokenUtils } from '../../../common/utils/token.utils';
 import { AuthTokenService } from '../auth-token.service';
 import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 import { PromoteGuestUseCase } from './promote-guest.use-case';
+import { MigrateGuestConversationsUseCase } from 'src/modules/ai-assistant/use-cases/migrate-guest-conversations.use-case';
 import { HashHelper } from '../../../common/utils/hash.util';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -84,6 +85,10 @@ const mockPromoteGuestUseCase = {
     execute: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockMigrateGuestConversationsUseCase = {
+    execute: jest.fn().mockResolvedValue(undefined),
+};
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('SignInUseCase', () => {
@@ -102,7 +107,8 @@ describe('SignInUseCase', () => {
                 { provide: AuthTokenService, useValue: {} },
                 { provide: DataSource, useValue: mockDataSource },
                 { provide: OutboxProcessorService, useValue: mockOutboxProcessor },
-                { provide: PromoteGuestUseCase, useValue: mockPromoteGuestUseCase }, // ← الإضافة الأساسية
+                { provide: PromoteGuestUseCase, useValue: mockPromoteGuestUseCase },
+                { provide: MigrateGuestConversationsUseCase, useValue: mockMigrateGuestConversationsUseCase },
             ],
         }).compile();
 
@@ -155,7 +161,28 @@ describe('SignInUseCase', () => {
             expect(result.data.accessToken).toBe('access-token-mock');
         });
 
-        it('promotes the guest device and swallows a promotion failure without failing sign-in', async () => {
+        it('promotes guest device and migrates guest conversations when guestDeviceId is provided', async () => {
+            const user = buildUser();
+            mockUserRepo.findOne.mockResolvedValue(user);
+            jest.spyOn(HashHelper, 'comparePasswords').mockResolvedValue(true);
+
+            const result = await useCase.execute(
+                { email: 'jane@example.com', password: 'Password1!' } as any,
+                'device-123',
+            );
+
+            expect(mockPromoteGuestUseCase.execute).toHaveBeenCalledWith({
+                guestDeviceId: 'device-123',
+                userId: user.id,
+            });
+            expect(mockMigrateGuestConversationsUseCase.execute).toHaveBeenCalledWith(
+                'device-123',
+                user.id,
+            );
+            expect(result.data.accessToken).toBe('access-token-mock');
+        });
+
+        it('swallows a promotion failure without failing sign-in and still migrates conversations', async () => {
             const user = buildUser();
             mockUserRepo.findOne.mockResolvedValue(user);
             jest.spyOn(HashHelper, 'comparePasswords').mockResolvedValue(true);
@@ -170,6 +197,10 @@ describe('SignInUseCase', () => {
                 guestDeviceId: 'device-123',
                 userId: user.id,
             });
+            expect(mockMigrateGuestConversationsUseCase.execute).toHaveBeenCalledWith(
+                'device-123',
+                user.id,
+            );
             expect(result.data.accessToken).toBe('access-token-mock');
         });
     });

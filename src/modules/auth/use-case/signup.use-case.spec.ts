@@ -6,13 +6,14 @@ import { SignupUseCase } from './signup.use-case';
 import { UserEntity, UserStatus } from '../entities/user.entity';
 import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
-import { maskEmail } from '../../../common/utils/email.utils';
+import { MigrateGuestConversationsUseCase } from '../../ai-assistant/use-cases/migrate-guest-conversations.use-case';
 
 describe('SignupUseCase', () => {
     let useCase: SignupUseCase;
     let userRepository: Partial<Repository<UserEntity>>;
     let dataSource: Partial<DataSource>;
     let outboxProcessorService: Partial<OutboxProcessorService>;
+    let migrateGuestConversationsUseCase: Partial<MigrateGuestConversationsUseCase>;
 
     const mockQueryRunner = {
         connect: jest.fn(),
@@ -21,17 +22,21 @@ describe('SignupUseCase', () => {
         rollbackTransaction: jest.fn(),
         release: jest.fn(),
         manager: {
-            save: jest.fn().mockImplementation((entity) => Promise.resolve({ id: 'user-id-123', ...entity })),
-            create: jest.fn().mockImplementation((entityClass, dto) => {
-                if (entityClass === OutboxEventEntity) {
-                    return { id: 'outbox-id-123', ...dto };
+            save: jest.fn().mockImplementation((entity) => {
+                if (!entity.id) {
+                    entity.id = entity instanceof OutboxEventEntity ? `outbox-id-${Math.random()}` : 'user-id-123';
                 }
-                return { id: 'user-id-123', ...dto };
+                return Promise.resolve(entity);
+            }),
+            create: jest.fn().mockImplementation((entityClass, dto) => {
+                return { ...dto };
             }),
         },
     };
 
     beforeEach(async () => {
+        jest.clearAllMocks();
+
         userRepository = {
             findOne: jest.fn(),
         };
@@ -42,6 +47,10 @@ describe('SignupUseCase', () => {
 
         outboxProcessorService = {
             triggerPublish: jest.fn().mockResolvedValue(undefined),
+        };
+
+        migrateGuestConversationsUseCase = {
+            execute: jest.fn().mockResolvedValue(undefined),
         };
 
         const module: TestingModule = await Test.createTestingModule({
@@ -58,6 +67,10 @@ describe('SignupUseCase', () => {
                 {
                     provide: OutboxProcessorService,
                     useValue: outboxProcessorService,
+                },
+                {
+                    provide: MigrateGuestConversationsUseCase,
+                    useValue: migrateGuestConversationsUseCase,
                 },
             ],
         }).compile();
@@ -110,7 +123,7 @@ describe('SignupUseCase', () => {
 
         expect(mockQueryRunner.startTransaction).toHaveBeenCalled();
         expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
-        expect(outboxProcessorService.triggerPublish).toHaveBeenCalledWith('outbox-id-123');
+        expect(outboxProcessorService.triggerPublish).toHaveBeenCalledTimes(1);
         expect(result).toEqual({
             message: expect.stringContaining('Registration successful'),
             statusCode: 201,
@@ -119,9 +132,36 @@ describe('SignupUseCase', () => {
                 email: 'test@example.com',
                 fullName: 'Test User',
                 phone: '+201012345678',
-                status: 'UNVERIFIED_PATIENT',
+                status: UserStatus.UNVERIFIED_PATIENT,
                 isVerified: false,
             },
         });
+    });
+
+    it('should migrate conversations and publish guest.promoted event when guestDeviceId is provided', async () => {
+        jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
+
+        const dto: any = {
+            fullName: 'Guest User',
+            email: 'guest@example.com',
+            phoneNumber: '01012345678',
+            gender: 'MALE',
+            password: 'Password123!',
+            confirmPassword: 'Password123!',
+            bookingIntent: { doctorId: 'doc-123' },
+        };
+
+        const guestDeviceId = 'guest-device-xyz';
+
+        const result = await useCase.execute(dto, guestDeviceId);
+
+        await new Promise((resolve) => setImmediate(resolve));
+
+        expect(migrateGuestConversationsUseCase.execute).toHaveBeenCalledWith(
+            guestDeviceId,
+            'user-id-123',
+        );
+        expect(outboxProcessorService.triggerPublish).toHaveBeenCalledTimes(2);
+        expect(result.data.pendingBookingIntent).toEqual({ doctorId: 'doc-123' });
     });
 });

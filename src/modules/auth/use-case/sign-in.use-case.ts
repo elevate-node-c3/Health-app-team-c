@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { UserEntity } from '../entities/user.entity';
+import { UserEntity, UserStatus } from '../entities/user.entity';
 import { OutboxEventEntity } from '../../../common/outbox/entities/outbox-event.entity';
 import { OutboxProcessorService } from '../../../common/outbox/services/outbox-processor.service';
 import { HashHelper } from '../../../common/utils/hash.util';
@@ -10,6 +10,7 @@ import { AuthTokenService } from '../auth-token.service';
 import { SignInDto } from '../dto/sign-in.dto';
 import { normalizeEgyptianPhoneNumber } from '../../../common/utils/phone.util';
 import { PromoteGuestUseCase } from './promote-guest.use-case';
+import { MigrateGuestConversationsUseCase } from 'src/modules/ai-assistant/use-cases/migrate-guest-conversations.use-case';
 
 @Injectable()
 export class SignInUseCase {
@@ -23,6 +24,7 @@ export class SignInUseCase {
         private readonly dataSource: DataSource,
         private readonly outboxProcessorService: OutboxProcessorService,
         private readonly promoteGuestUseCase: PromoteGuestUseCase,
+        private readonly migrateGuestConversationsUseCase: MigrateGuestConversationsUseCase,
     ) { }
 
     async execute(dto: SignInDto, guestDeviceId?: string) {
@@ -32,6 +34,8 @@ export class SignInUseCase {
         }
         const isEmailAttempt = rawIdentifier.includes('@');
         let user: UserEntity | null = null;
+
+
 
         if (isEmailAttempt) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -133,6 +137,14 @@ export class SignInUseCase {
                 },
                 isProcessed: false,
             });
+
+            if (normalizedGuestDeviceId) {
+                await this.migrateGuestConversationsUseCase.execute(
+                    normalizedGuestDeviceId,
+                    user.id,
+                );
+            }
+
             const savedEvent = await queryRunner.manager.save(outboxEvent);
             savedOutboxEventId = savedEvent.id;
 

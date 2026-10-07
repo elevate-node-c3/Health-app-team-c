@@ -39,4 +39,26 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
             await this.client.del(...keys);
         }
     }
+
+
+    async incr(key: string): Promise<number> {
+        return await this.client.incr(key);
+    }
+
+    async expire(key: string, ttlSeconds: number): Promise<void> {
+        await this.client.expire(key, ttlSeconds);
+    }
+
+    async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+        const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
+        return result === 'OK';
+    }
+
+
+    async incrByFloat(key: string, increment: number): Promise<number> {
+        const rawResult = await this.client.incrbyfloat(key, increment);
+        return parseFloat(rawResult);
+    }
+
+
 }

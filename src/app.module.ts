@@ -17,6 +17,7 @@ import { PaymentModule } from "./modules/payment/payment.module";
 import { BookingModule } from "./modules/booking/booking.module";
 import { PrescriptionModule } from "./modules/prescription/prescription.module";
 import { AlertService } from "./common/outbox/services/alert.service";
+import { AiAssistantModule } from "./modules/ai-assistant/ai-assistant.module";
 
 @Global()
 @Module({
@@ -41,6 +42,8 @@ import { AlertService } from "./common/outbox/services/alert.service";
           { name: 'appointment_exchange.dlx', type: 'topic' },
           { name: 'payment_exchange', type: 'topic' },
           { name: 'payment_exchange.dlx', type: 'topic' },
+          { name: 'ai_exchange', type: 'topic' },
+          { name: 'ai_exchange.dlx', type: 'topic' },
 
         ],
         uri: configService.get<string>("rabbitmq.uri")!,
@@ -57,6 +60,7 @@ import { AlertService } from "./common/outbox/services/alert.service";
     PaymentModule,
     BookingModule,
     PrescriptionModule,
+    AiAssistantModule,
   ],
 
 

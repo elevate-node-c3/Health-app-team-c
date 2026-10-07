@@ -8,6 +8,22 @@ import { DoctorClinicEntity } from '../../modules/catalog/entities/doctor-clinic
 import { RedisService } from 'src/common/redis/redis.service';
 import { CACHE_KEYS } from 'src/common/constants/cache-keys.constant';
 
+
+type DayToken = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
+
+function buildSchedule(days: DayToken[], start: string, end: string, slotDuration = 30) {
+    const schedule: Record<string, unknown> = {
+        days,
+        hours: `${start} - ${end}`,
+        slotDuration,
+        leaves: [] as string[],
+    };
+    for (const day of days) {
+        schedule[day] = { start, end };
+    }
+    return schedule;
+}
+
 @Injectable()
 export class CatalogSeeder {
     private readonly logger = new Logger(CatalogSeeder.name);
@@ -107,6 +123,7 @@ export class CatalogSeeder {
 
             const primaryClinic = clinics[(i - 1) % clinics.length];
             const primaryFee = Math.floor(Math.random() * 600) + 200;
+            const primarySchedule = buildSchedule(['Sun', 'Tue', 'Thu'], '10:00', '15:00');
 
             const existingPair = await this.doctorClinicRepo.findOne({
                 where: { doctorId: doctor.id, clinicId: primaryClinic.id },
@@ -117,15 +134,19 @@ export class CatalogSeeder {
                     doctorId: doctor.id,
                     clinicId: primaryClinic.id,
                     consultationFee: primaryFee,
-                    schedule: { days: ['Sun', 'Tue', 'Thu'], hours: '10:00 - 15:00' },
+                    schedule: primarySchedule,
                     isActive: true,
                 });
+            } else {
+                existingPair.schedule = primarySchedule;
+                await this.doctorClinicRepo.save(existingPair);
             }
 
             if (i <= 15) {
                 const secondaryClinic = clinics[i % clinics.length];
                 if (secondaryClinic.id !== primaryClinic.id) {
                     const secondaryFee = Math.floor(Math.random() * 800) + 700;
+                    const secondarySchedule = buildSchedule(['Mon', 'Wed'], '17:00', '21:00');
 
                     const existingSecondPair = await this.doctorClinicRepo.findOne({
                         where: { doctorId: doctor.id, clinicId: secondaryClinic.id },
@@ -136,9 +157,12 @@ export class CatalogSeeder {
                             doctorId: doctor.id,
                             clinicId: secondaryClinic.id,
                             consultationFee: secondaryFee,
-                            schedule: { days: ['Mon', 'Wed'], hours: '17:00 - 21:00' },
+                            schedule: secondarySchedule,
                             isActive: true,
                         });
+                    } else {
+                        existingSecondPair.schedule = secondarySchedule;
+                        await this.doctorClinicRepo.save(existingSecondPair);
                     }
                 }
             }
