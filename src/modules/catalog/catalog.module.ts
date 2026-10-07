@@ -6,7 +6,6 @@ import { DoctorEntity } from "./entities/doctor.entity";
 import { SpecialtyEntity } from "./entities/specialty.entity";
 import { OutboxEventEntity } from "src/common/outbox/entities/outbox-event.entity";
 import { ProcessedEventEntity } from "src/common/outbox/entities/processed-event.entity";
-import { OutboxProcessorService } from "src/common/outbox/services/outbox-processor.service";
 import { GetHomeDashboardUseCase } from "./use-case/get-home-dashboard.use-case";
 import { AddFavoriteUseCase } from "./use-case/add-favorite.use-case";
 import { RemoveFavoriteUseCase } from "./use-case/remove-favorite.use-case";
@@ -21,7 +20,6 @@ import { FavoriteEntity } from "./entities/favorite.entity";
 import { NotificationEntity } from "./entities/notification.entity";
 import { ReviewEntity } from "./entities/review.entity";
 import { FavoriteNotificationConsumer } from "./consumers/favorite-notification.consumer";
-import { AlertService } from "src/common/outbox/services/alert.service";
 import { GetDoctorProfileUseCase } from "./use-case/get-doctor-profile.use-case";
 import { GetDoctorAvailabilityUseCase } from "./use-case/get-doctor-availability.use-case";
 import { SlotHoldEntity } from "../booking/entities/slot-hold.entity";
@@ -60,6 +58,6 @@ import { OutboxModule } from "src/common/outbox/outbox.module";
     GetDoctorProfileUseCase,
     GetDoctorAvailabilityUseCase,
   ],
-  exports: [CatalogSeeder],
+  exports: [CatalogSeeder, GetDoctorAvailabilityUseCase],
 })
 export class CatalogModule { }

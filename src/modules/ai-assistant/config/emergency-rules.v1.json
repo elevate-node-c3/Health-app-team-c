@@ -1,0 +1,329 @@
+{
+    "_note": "MEDICAL ARTEFACT (D12). Any change must be reviewed by a clinician and bump 'version'. Patterns are regex (flags: iu) written against NORMALIZED text: lowercase, alef variants -> ا, ى -> ي, ة -> ه, ؤ -> و, ئ -> ي, tashkeel/tatweel removed, repeated Arabic letters collapsed, punctuation removed. Macros like {{B}} are defined in 'definitions'.",
+    "version": "1.0.0",
+    "status": "DRAFT_PENDING_CLINICAL_REVIEW",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "emergencyNumber": "123",
+    "definitions": {
+        "B": "(?<![\\p{L}\\p{N}])(?:و|ف)?",
+        "E": "(?![\\p{L}\\p{N}])",
+        "GAP3": "(?:\\s+\\p{L}+){0,3}\\s+",
+        "CHEST": "(?:ال|ب|ل|و|ف)?(?:صدر|قلب)\\p{L}{0,3}",
+        "PAIN": "(?:الم|الام|وجع|بيوجع|بتوجع|يوجع|توجع|نغز|وخز|حرق|بيعصر|بتعصر|ثقل)\\p{L}*",
+        "BLEED": "{{B}}(?:ب|ي|ت|ه|بي|بت|ال)?(?:نزيف|نزف|نازف)\\p{L}*",
+        "SEVERE": "(?:شديد|غزير|جامد|كتير|كثير|فظيع|بغزاره)\\p{L}*",
+        "STOPS": "مش\\s+(?:بي|ب)?(?:و)?قف"
+    },
+    "context": {
+        "pastMarkers": [
+            "{{B}}السنه\\s+(?:الي\\s+)?(?:فاتت|فات|الماضيه)",
+            "{{B}}من\\s+(?:سنين|سنه|سنتين|زمان|شهور|شهرين)",
+            "{{B}}قبل\\s+(?:سنه|سنتين|سنين|شهور|\\d+\\s+(?:سنين|سنه|شهور))",
+            "{{B}}(?:last|previous)\\s+(?:year|month)",
+            "{{B}}(?:years?|months?)\\s+ago",
+            "{{B}}long\\s+ago"
+        ],
+        "presentMarkers": [
+            "{{B}}(?:دلوقتي|دلوقت|حالا|الان|النهارده|لسه|لحد\\s+دلوقتي){{E}}",
+            "{{B}}(?:right\\s+now|now|currently|still|today|tonight|at\\s+the\\s+moment|just\\s+now)\\b"
+        ],
+        "dismissalMaxWords": 6,
+        "dismissalPatterns": [
+            "{{B}}(?:سيبك|ولا\\s+يهمك|مش\\s+مهم|خلاص|انسي|مفيش\\s+حاجه)",
+            "{{B}}(?:never\\s*mind|nvm|forget\\s+it|its\\s+nothing|ignore\\s+that)"
+        ]
+    },
+    "responses": {
+        "DEFAULT": {
+            "ar": "🚨 الأعراض اللي وصفتها ممكن تكون حالة طارئة.\n\nاتصل بالإسعاف على {{EMERGENCY_NUMBER}} حالًا أو روح لأقرب طوارئ. متستناش حجز موعد من التطبيق.",
+            "en": "🚨 The symptoms you describe could be a medical emergency.\n\nCall emergency services ({{EMERGENCY_NUMBER}}) now or go to the nearest emergency department. Do not wait to book an appointment in the app."
+        },
+        "CHEST_PAIN": {
+            "ar": "🚨 ألم الصدر ممكن يكون علامة على مشكلة خطيرة في القلب.\n\nاتصل بالإسعاف على {{EMERGENCY_NUMBER}} حالًا أو روح لأقرب طوارئ. متستناش حجز موعد من التطبيق، ولو تقدر خلّي حد يفضل معاك.",
+            "en": "🚨 Chest pain can be a sign of a serious heart problem.\n\nCall emergency services ({{EMERGENCY_NUMBER}}) now or go to the nearest emergency department. Do not wait to book an appointment in the app, and if you can, have someone stay with you."
+        },
+        "STROKE_SIGNS": {
+            "ar": "🚨 الأعراض دي ممكن تكون علامات سكتة دماغية، والوقت فيها مهم جدًا.\n\nاتصل بالإسعاف على {{EMERGENCY_NUMBER}} حالًا، وخد بالك من الوقت اللي بدأت فيه الأعراض عشان تقوله للإسعاف. متستناش حجز موعد من التطبيق.",
+            "en": "🚨 These symptoms can be signs of a stroke, and time matters a lot.\n\nCall emergency services ({{EMERGENCY_NUMBER}}) now and note when the symptoms started so you can tell them. Do not wait to book an appointment in the app."
+        },
+        "BREATHING_DIFFICULTY": {
+            "ar": "🚨 صعوبة التنفس حالة طارئة.\n\nاتصل بالإسعاف على {{EMERGENCY_NUMBER}} حالًا أو روح لأقرب طوارئ، ومتفضلش لوحدك. متستناش حجز موعد من التطبيق.",
+            "en": "🚨 Difficulty breathing is a medical emergency.\n\nCall emergency services ({{EMERGENCY_NUMBER}}) now or go to the nearest emergency department, and do not stay alone. Do not wait to book an appointment in the app."
+        },
+        "SEVERE_BLEEDING": {
+            "ar": "🚨 النزيف الشديد أو اللي مش بيقف حالة طارئة.\n\nاتصل بالإسعاف على {{EMERGENCY_NUMBER}} حالًا أو روح لأقرب طوارئ. متستناش حجز موعد من التطبيق.",
+            "en": "🚨 Severe bleeding, or bleeding that will not stop, is a medical emergency.\n\nCall emergency services ({{EMERGENCY_NUMBER}}) now or go to the nearest emergency department. Do not wait to book an appointment in the app."
+        },
+        "PREGNANCY_EMERGENCY": {
+            "ar": "🚨 الأعراض دي مع الحمل ممكن تكون حالة طارئة ليكي أو للجنين.\n\nاتصلي بالإسعاف على {{EMERGENCY_NUMBER}} حالًا أو روحي لأقرب طوارئ. متستنيش حجز موعد من التطبيق.",
+            "en": "🚨 These symptoms during pregnancy can be an emergency for you or your baby.\n\nCall emergency services ({{EMERGENCY_NUMBER}}) now or go to the nearest emergency department. Do not wait to book an appointment in the app."
+        },
+        "INFANT_FEVER": {
+            "ar": "🚨 الحرارة عند الرضيع الصغير لازم تتقيّم فورًا من دكتور.\n\nروح لأقرب طوارئ أطفال أو اتصل بالإسعاف على {{EMERGENCY_NUMBER}} حالًا. متستناش حجز موعد من التطبيق.",
+            "en": "🚨 A fever in a young infant needs to be assessed by a doctor right away.\n\nGo to the nearest emergency department or call emergency services ({{EMERGENCY_NUMBER}}) now. Do not wait to book an appointment in the app."
+        },
+        "SELF_HARM": {
+            "ar": "أنا آسف إنك بتمر بوقت صعب، وحياتك مهمة.\n\nلو فيه خطر إنك تأذي نفسك دلوقتي، اتصل بالإسعاف على {{EMERGENCY_NUMBER}} أو روح لأقرب طوارئ، وكلّم حد قريب منك يقعد معاك حالًا. متفضلش لوحدك.",
+            "en": "I'm sorry you're going through such a hard time. Your life matters.\n\nIf you might hurt yourself right now, call emergency services ({{EMERGENCY_NUMBER}}) or go to the nearest emergency department, and ask someone close to you to be with you right away. Please do not stay alone."
+        }
+    },
+    "rules": [
+        {
+            "id": "SUICIDE_01",
+            "category": "SELF_HARM",
+            "priority": 1,
+            "pastTenseDowngrade": false,
+            "groups": [
+                [
+                    "نتحا?ر",
+                    "suicid",
+                    "{{B}}(?:عايز|عاوز|عايزه|عاوزه|نفسي|ناوي|ناويه|حابب)\\s+(?:ان\\s+)?ا?موت{{E}}",
+                    "{{B}}(?:هقتل|اقتل|قتل|هنهي|انهي|انهاء)\\s+(?:حياتي|نفسي)",
+                    "{{B}}هخلص\\s+علي\\s+(?:نفسي|حياتي)",
+                    "{{B}}مش\\s+(?:عايز|عاوز|عايزه|عاوزه)\\s+ا?عيش",
+                    "{{B}}(?:تعبت|زهقت)\\s+من\\s+(?:ال)?حياه",
+                    "{{B}}(?:ب|ه)?(?:اذي|وذي|ايذاء)\\s+نفسي",
+                    "{{B}}kill\\s+myself",
+                    "{{B}}end\\s+my\\s+life",
+                    "{{B}}(?:want|wanna|going)\\s+to\\s+die",
+                    "{{B}}wanna\\s+die",
+                    "{{B}}(?:dont|do\\s+not)\\s+want\\s+to\\s+(?:live|be\\s+alive|be\\s+here)",
+                    "{{B}}better\\s+off\\s+dead",
+                    "{{B}}take\\s+my\\s+own\\s+life",
+                    "{{B}}(?:hurt|harm|cut)\\s+myself",
+                    "{{B}}self\\s?harm"
+                ]
+            ],
+            "positiveExamples": [
+                "عايز اموت",
+                "أفكار انتحارية",
+                "عايز اموت نفسي",
+                "مش عايز اعيش",
+                "I want to kill myself",
+                "I dont want to live anymore",
+                "الانتحار"
+            ],
+            "negativeExamples": [
+                "عايز اعمل تحليل دم",
+                "I want to book a doctor",
+                "موت الجنين ازاي اتجنبه"
+            ]
+        },
+        {
+            "id": "RESPIRATORY_01",
+            "category": "BREATHING_DIFFICULTY",
+            "priority": 2,
+            "pastTenseDowngrade": true,
+            "groups": [
+                [
+                    "{{B}}ضيق\\s+(?:في\\s+)?(?:ال)?(?:تنفس|نفس)",
+                    "{{B}}صعوبه\\s+(?:في\\s+)?(?:ال)?تنفس",
+                    "{{B}}مش\\s+(?:قادر|قادره|عارف|عارفه|لاقي|لاقيه)\\s+(?:ان\\s+)?(?:ا?تنفس|ا?خد\\s+نفس\\p{L}*|ا?طلع\\s+نفس\\p{L}*|نفس\\p{L}*)",
+                    "{{B}}مش\\s+(?:بي|ب)?تنفس",
+                    "{{B}}نفس\\p{L}{0,2}\\s+(?:مقطوع|بيقطع|واقف|بيروح|قصير|ضايق)",
+                    "ختنق|ختناق",
+                    "{{B}}كتم\\p{L}*\\s+(?:في\\s+)?(?:ب)?(?:ال)?صدر\\p{L}{0,3}",
+                    "{{B}}توقف\\p{L}*\\s+(?:ال)?تنفس",
+                    "{{B}}(?:shortness\\s+of\\s+breath|short\\s+of\\s+breath|difficulty\\s+breathing|trouble\\s+breathing|struggling\\s+to\\s+breathe|hard\\s+to\\s+breathe|cant\\s+breathe|can\\s*not\\s+breathe|choking)"
+                ]
+            ],
+            "positiveExamples": [
+                "ضيق تنفس",
+                "مش قادر اتنفس",
+                "مش عارف اخد نفسي",
+                "ضيييق في النفس",
+                "ضــيق تنفس",
+                "ابني مش بيتنفس كويس",
+                "I cant breathe",
+                "she has trouble breathing"
+            ],
+            "negativeExamples": [
+                "عايز دكتور صدر",
+                "my breathing exercise app is great"
+            ]
+        },
+        {
+            "id": "CARDIAC_01",
+            "category": "CHEST_PAIN",
+            "priority": 3,
+            "pastTenseDowngrade": true,
+            "groups": [
+                [
+                    "{{B}}{{PAIN}}{{GAP3}}{{CHEST}}",
+                    "{{B}}{{CHEST}}(?:\\s+\\p{L}+){0,2}\\s+{{PAIN}}",
+                    "{{B}}ضغط\\s+(?:في|علي|على|ع)\\s+(?:ال)?صدر\\p{L}{0,3}",
+                    "{{B}}(?:ذبحه\\s+صدريه|ازمه\\s+قلبيه|سكته\\s+قلبيه|جلطه\\s+(?:في\\s+)?(?:ال)?قلب|احتشاء)",
+                    "{{B}}(?:heart\\s+attack|cardiac\\s+arrest)",
+                    "{{B}}chest\\s+(?:\\w+\\s+){0,2}(?:pain|pains|tightness|pressure|discomfort|hurts)",
+                    "{{B}}(?:pain|pains|tightness|pressure|discomfort)\\s+(?:in|on|across|around)\\s+(?:(?:my|the|his|her|their)\\s+)?chest"
+                ]
+            ],
+            "positiveExamples": [
+                "عندي ألم شديد في الصدر",
+                "صدري بيوجعني اوي",
+                "وجع في صدري",
+                "حرقان صدري شديد",
+                "ألم الصدررر",
+                "ضغط على صدري",
+                "I have chest pain",
+                "pain in my chest",
+                "I think I am having a heart attack"
+            ],
+            "negativeExamples": [
+                "عايز دكتور قلب",
+                "عندي ضغط وعايز دكتور قلب",
+                "ما مصدر الالم في الكتف",
+                "I have a sore shoulder after the gym",
+                "I need a cardiologist"
+            ]
+        },
+        {
+            "id": "PREGNANCY_01",
+            "category": "PREGNANCY_EMERGENCY",
+            "priority": 4,
+            "pastTenseDowngrade": true,
+            "groups": [
+                [
+                    "{{B}}(?:ال|ب|ف|ل)?(?:حامل|حمل)\\p{L}*",
+                    "{{B}}pregnan\\w*"
+                ],
+                [
+                    "{{BLEED}}",
+                    "{{B}}(?:نزول|نزل|نزلت|نازل|بينزل|بتنزل)\\p{L}*\\s+(?:\\p{L}+\\s+)?دم",
+                    "{{B}}دم\\s+(?:نازل|نزل|بينزل|كتير|كثير|غزير)\\p{L}*",
+                    "{{B}}(?:الم|مغص|وجع)\\p{L}*\\s+(?:\\p{L}+\\s+){0,2}(?:شديد|جامد|فظيع|قوي)\\p{L}*",
+                    "{{B}}مش\\s+حاس\\p{L}*\\s+(?:ب)?حرك\\p{L}*",
+                    "{{B}}مفيش\\s+حرك\\p{L}*",
+                    "{{B}}حرك\\p{L}*\\s+(?:ال)?(?:جنين|بيبي|طفل)\\p{L}*\\s+(?:قلت|وقفت|وقف|اختفت|ضعيفه)",
+                    "{{B}}(?:ال)?(?:مياه|ميه|ميا)\\s+(?:\\p{L}+\\s+)?(?:نزلت|نزل|انفجرت)",
+                    "{{B}}(?:ال)?طلق{{E}}",
+                    "{{B}}(?:ال)?(?:تقلصات|انقباضات)\\p{L}*",
+                    "{{B}}(?:تشنج|اغماء|اغمي|فقدت\\s+الوعي)\\p{L}*",
+                    "{{B}}(?:heavy|severe)\\s+(?:bleeding|pain|cramp\\w*|headache|abdominal\\s+pain)",
+                    "{{B}}bleed\\w*",
+                    "{{B}}contractions?",
+                    "{{B}}waters?\\s+broke",
+                    "{{B}}(?:no|reduced|decreased)\\s+(?:fetal\\s+)?movement",
+                    "{{B}}baby\\s+(?:has\\s+)?(?:stopped|isnt|is\\s+not|not)\\s+moving",
+                    "{{B}}not\\s+feeling\\s+(?:the\\s+)?baby\\s+move",
+                    "{{B}}(?:seizure|fainted|passed\\s+out|fainting)"
+                ]
+            ],
+            "positiveExamples": [
+                "انا حامل وعندي نزيف",
+                "حامل وعندي الم شديد في بطني",
+                "حامل ومش حاسه بحركة الجنين",
+                "I am pregnant and have heavy bleeding",
+                "pregnant and my water broke"
+            ],
+            "negativeExamples": [
+                "انا حامل وعايزة دكتور ولادة",
+                "حامل وعايزة اعمل تحليل دم",
+                "I'm pregnant, which doctor should I see?"
+            ]
+        },
+        {
+            "id": "STROKE_01",
+            "category": "STROKE_SIGNS",
+            "priority": 5,
+            "pastTenseDowngrade": true,
+            "groups": [
+                [
+                    "{{B}}جلط\\p{L}*",
+                    "{{B}}سكت\\p{L}*\\s+دماغ\\p{L}*",
+                    "{{B}}(?:شلل\\s+(?:نصفي|رباعي)|فالج)",
+                    "{{B}}(?:ال)?(?:وش|وجه)\\p{L}{0,2}\\s+(?:\\p{L}+\\s+){0,2}(?:مايل|مايله|معوج|معوجه|منحرف|منحرفه|اتلخبط|اتشد)",
+                    "{{B}}(?:تنميل|خدر|تخدر|ضعف)\\p{L}*\\s+(?:\\p{L}+\\s+){0,2}(?:ال)?(?:وش|وجه|نص\\s+جسم|نصف\\s+جسم|جنب\\s+واحد|جانب\\s+واحد)\\p{L}*",
+                    "{{B}}(?:كلام|لسان|نطق)\\p{L}*\\s+(?:\\p{L}+\\s+){0,2}(?:تقيل|ثقيل|متلخبط\\p{L}*|مش\\s+واضح\\p{L}*|مش\\s+مفهوم\\p{L}*)",
+                    "{{B}}ثقل\\s+(?:في\\s+)?ا?ل?سان",
+                    "{{B}}مش\\s+قادر\\p{L}*\\s+(?:ا)?(?:تكلم|احرك\\p{L}*)",
+                    "{{B}}stroke{{E}}",
+                    "{{B}}slurred\\s+(?:speech|words)",
+                    "{{B}}(?:face|facial)\\s+(?:is\\s+)?(?:drooping|droopy|droop|numb)",
+                    "{{B}}(?:numbness|weakness)\\s+(?:in|on)\\s+(?:(?:my|the|his|her)\\s+)?(?:face|one\\s+side)",
+                    "{{B}}sudden\\s+(?:numbness|weakness|confusion|trouble\\s+speaking)",
+                    "{{B}}(?:cant|cannot)\\s+(?:move|lift|feel)\\s+(?:(?:my|his|her)\\s+)?(?:arm|leg|face)"
+                ]
+            ],
+            "positiveExamples": [
+                "جلطة",
+                "وشي مايل وكلامي تقيل",
+                "عندها شلل نصفي",
+                "تنميل في الوش",
+                "ثقل في اللسان",
+                "slurred speech",
+                "his face is drooping"
+            ],
+            "negativeExamples": [
+                "keystroke logging",
+                "عايز دكتور مخ واعصاب"
+            ]
+        },
+        {
+            "id": "BLEEDING_01",
+            "category": "SEVERE_BLEEDING",
+            "priority": 6,
+            "pastTenseDowngrade": true,
+            "groups": [
+                [
+                    "{{BLEED}}(?:\\s+\\p{L}+){0,3}\\s+{{SEVERE}}",
+                    "{{BLEED}}(?:\\s+\\p{L}+){0,3}\\s+{{STOPS}}\\p{L}*",
+                    "{{B}}(?:ال)?دم\\s+(?:\\p{L}+\\s+){0,2}{{STOPS}}\\p{L}*",
+                    "{{B}}دم\\s+(?:كتير|كثير|غزير)\\p{L}*",
+                    "{{B}}(?:ب|ي|ت|ه|بي|بت)?(?:رجع|رجعت|استفرغ|ستفرغ|تف|كح)\\p{L}*\\s+دم",
+                    "{{B}}(?:heavy|severe|profuse|uncontrolled)\\s+bleeding",
+                    "{{B}}(?:bleeding|blood)\\s+(?:\\w+\\s+){0,2}(?:heavily|profusely|wont\\s+stop|will\\s+not\\s+stop|not\\s+stopping|everywhere)",
+                    "{{B}}(?:vomiting|coughing\\s+up|throwing\\s+up|vomited)\\s+blood"
+                ]
+            ],
+            "positiveExamples": [
+                "عندي نزيف شديد",
+                "الدم مش بيقف",
+                "بيرجع دم",
+                "نزيف غزير",
+                "severe bleeding",
+                "the bleeding wont stop"
+            ],
+            "negativeExamples": [
+                "عايز اعمل تحليل دم",
+                "عندي نزيف في اللثة بسيط",
+                "I need a blood test"
+            ]
+        },
+        {
+            "id": "INFANT_FEVER_01",
+            "category": "INFANT_FEVER",
+            "priority": 7,
+            "pastTenseDowngrade": true,
+            "groups": [
+                [
+                    "{{B}}(?:ال|ب)?(?:حرار|سخون|سخن|حمي|fever|temperature)\\p{L}*"
+                ],
+                [
+                    "{{B}}(?:ال|ل|ب)?(?:رضيع|مولود|infant|newborn|neonate|baby|بيبي)\\p{L}*",
+                    "عمر\\p{L}*\\s+(?:\\d+\\s+)?(?:يوم|يومين|ايام|اسبوع|اسبوعين|اسابيع|شهر|شهرين){{E}}",
+                    "عمر\\p{L}*\\s+(?:[123]|ثلاث\\p{L}*|تلات\\p{L}*)\\s+(?:شهور|اشهر)",
+                    "{{B}}(?:[1-9]|1[0-2])\\s+weeks?\\s+old",
+                    "{{B}}(?:[1-9]|[1-5][0-9])\\s+days?\\s+old",
+                    "{{B}}[1-3]\\s+months?\\s+old",
+                    "{{B}}(?:one|two|three)\\s+months?\\s+old"
+                ]
+            ],
+            "positiveExamples": [
+                "ابني عنده سخونية وعمره شهرين",
+                "حرارة رضيع",
+                "حرارة عالية لرضيع",
+                "سخونية طفل رضيع",
+                "ابني عنده حرارة وعمره 3 شهور",
+                "my baby has a fever",
+                "he is 6 weeks old with a fever"
+            ],
+            "negativeExamples": [
+                "ابني عنده سخونية وعمره 5 سنين",
+                "ابني عنده حرارة وعمره 8 شهور",
+                "my 7 year old has a fever"
+            ]
+        }
+    ]
+}

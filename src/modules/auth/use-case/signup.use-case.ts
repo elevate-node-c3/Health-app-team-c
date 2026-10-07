@@ -9,6 +9,7 @@ import { normalizeEgyptianPhoneNumber } from '../../../common/utils/phone.util';
 import { generateOtpCode, getOtpExpirationTime } from '../../../common/utils/otp.util';
 import { HashHelper } from '../../../common/utils/hash.util';
 import { maskEmail } from '../../../common/utils/email.utils';
+import { MigrateGuestConversationsUseCase } from '../../ai-assistant/use-cases/migrate-guest-conversations.use-case';
 
 @Injectable()
 export class SignupUseCase {
@@ -19,6 +20,7 @@ export class SignupUseCase {
         private readonly userRepository: Repository<UserEntity>,
         private readonly dataSource: DataSource,
         private readonly outboxProcessorService: OutboxProcessorService,
+        private readonly migrateGuestConversationsUseCase: MigrateGuestConversationsUseCase,
     ) { }
 
     async execute(dto: SignupDto, guestDeviceId?: string) {
@@ -84,6 +86,13 @@ export class SignupUseCase {
             }
 
             await queryRunner.manager.save(user);
+
+            if (normalizedGuestDeviceId) {
+                await this.migrateGuestConversationsUseCase.execute(
+                    normalizedGuestDeviceId,
+                    user.id,
+                );
+            }
 
             const outboxEvent = queryRunner.manager.create(OutboxEventEntity, {
                 aggregateType: 'USER',
