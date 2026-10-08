@@ -1,6 +1,6 @@
 # DOCURA Backend API
 
-Short description: DOCURA is a doctor appointment booking backend for patients in Egypt. It lets guests browse doctors, search and filter by specialty, fee, rating, and availability, then — once registered with a verified phone — hold a slot, pay by card, and manage bookings (cancel, reschedule, refunds, prescriptions). Built with NestJS 10 + TypeScript + PostgreSQL (TypeORM) + RabbitMQ + Redis, it is event-driven via a transactional outbox, enforces money and concurrency rules in the database, and never trusts the client for price, availability, or refund decisions.
+DOCURA is a doctor appointment booking backend for patients in Egypt. Patients can discover doctors, check real availability, book and pay online, and manage their visits. It is built with NestJS, PostgreSQL, RabbitMQ and Redis, with an event-driven design for notifications and reminders.
 
 ## Table of Contents
 
@@ -20,15 +20,14 @@ Short description: DOCURA is a doctor appointment booking backend for patients i
 
 ## Key Features
 
-- **Guest-first discovery** — browse, search, filter, view profiles and availability without an account; booking requires a verified phone.
-- **Phone verification** — 4-digit OTP, 3-minute expiry, single-use, purpose-bound, with resend and lockout limits.
-- **Slot holds** — 10-minute hold while paying, one 5-minute extension for 3-D Secure; abandoned holds auto-release.
-- **Concurrency-safe booking** — one active appointment per slot enforced by a DB unique constraint (`23505` → `409 Conflict`).
-- **Cancellation policy** — ≥24h = free cancellation + refund; <24h = no refund; reschedule once under the same rule; decided server-side at confirmation time.
-- **Payments in EGP** — `decimal(10,2)`, cards stored as last4/brand/expiry only, idempotent charges and refunds.
-- **Event-driven side effects** — booking, payment, cancellation, and auth flows publish domain events; notifications, reminders, and counters subscribe independently.
-- **Transactional outbox + DLQ** — events committed with the business change, relayed by a cron processor, retried then dead-lettered; consumers are idempotent and non-throwing.
-- **Deny-by-default authZ** — every route needs `@Roles(...)`; cross-user reads return 404, not 403.
+- **Doctor discovery** — search by specialty or name, filter and sort, map view, and detailed doctor profiles with clinic schedules.
+- **Guest access** — browse, search and view availability without an account; an account is only needed to book.
+- **Authentication** — registration, phone verification via OTP, sign-in with email or phone, Google and Apple sign-in, and persistent sessions.
+- **Booking and payments** — temporary slot holds during checkout, online card payment in EGP, instant in-app confirmation plus SMS, email and push.
+- **Manage bookings** — upcoming, completed and cancelled history with cancel, reschedule, re-book and prescription download.
+- **Cancellations and refunds** — free and non-refundable cases handled with clear pre-confirm messaging and refund tracking.
+- **Engagement** — notifications, favorites, medical articles, and appointment reminders.
+- **Health assistant** — human ask-a-doctor questions plus an instant AI assistant for general guidance.
 
 ---
 
@@ -40,23 +39,23 @@ Short description: DOCURA is a doctor appointment booking backend for patients i
 | Language | TypeScript |
 | Database | PostgreSQL + TypeORM |
 | Messaging | RabbitMQ (`@golevelup/nestjs-rabbitmq`) |
-| Cache / counters | Redis (`ioredis`) |
-| Scheduling | `@nestjs/schedule` (outbox processor cron) |
-| Auth | JWT access + SHA-256 hashed refresh tokens |
-| Validation | `class-validator` + global `ValidationPipe` |
-| Config | `@nestjs/config` + Joi fail-fast schema |
-| Payments | Stripe (signature-verified webhooks, idempotency keys) |
+| Cache | Redis (`ioredis`) |
+| Scheduling | `@nestjs/schedule` |
+| Auth | JWT access + refresh tokens |
+| Validation | `class-validator` + `ValidationPipe` |
+| Config | `@nestjs/config` + Joi |
+| Payments | Stripe |
 | Containerization | Docker & Docker Compose |
 
 ---
 
 ## How It Works
 
-1. **Request pipeline** — `AuthContextMiddleware` builds the caller context (Bearer JWT or `x-device-id` for guests) → `RolesGuard` checks `@Roles(...)` (deny by default) → global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`) validates the DTO → Controller (HTTP only) → Use-Case (business rules) → Service / TypeORM entity. Responses use the `TransformInterceptor` success envelope; errors go through the `GlobalExceptionFilter` with stable machine codes.
-2. **Discovery** — fee and schedule live on the doctor↔clinic pairing, so the same doctor can charge different fees at different clinics. Search resolves both specialties and doctor names; the 1000 EGP price filter means "1000 and above".
-3. **Booking** — patient creates a slot hold → pays by card → availability is re-checked at payment time → the appointment is inserted under a DB unique constraint so exactly one of two simultaneous bookers wins. Failed payment creates no appointment and leaves the slot free.
-4. **Events** — each state change writes its row plus an `outbox_events` row in one transaction. `OutboxProcessorService` publishes pending rows to the matching `*_exchange`, retrying up to 10 times before marking `FAILED_PERMANENTLY` and alerting. Consumers check `ProcessedEventEntity` first (idempotent), do their own work (email/SMS/push, reminders, counters), and on repeated failure route to the `.dlx` exchange instead of breaking the booking.
-5. **Cancel / reschedule** — the server computes free vs. no-refund from the live clock at confirmation time (a preview shown earlier is never the decision). Cancelling always frees the slot; free cancellations create a refund with a `refund-pending` state (5–10 business days).
+1. **Request flow** — authentication middleware resolves the caller (user or guest), guards check access, DTOs are validated, controllers delegate to use-cases, and responses use a single success/error envelope.
+2. **Discovery** — doctors, clinics, schedules and fees are modeled per clinic, powering search, filters and per-clinic availability.
+3. **Booking** — a slot is held during payment, availability is re-checked before confirming, and concurrent bookings for the same slot are resolved so only one succeeds.
+4. **Cancellations** — cancelling frees the slot, cancels pending reminders, sends a notification, and issues a refund where applicable.
+5. **Background work** — state changes publish domain events via a transactional outbox; notification, reminder and analytics consumers process them independently with retries.
 
 ---
 
@@ -65,20 +64,17 @@ Short description: DOCURA is a doctor appointment booking backend for patients i
 **Patient books a visit:**
 
 ```
-browse doctors (guest OK) → search / filter / view profile + per-clinic slots
-  → sign up + verify phone (OTP) → pick clinic + date + time → hold slot (10 min)
-  → pay by card → instant confirmation (in-app + SMS/email/push, "arrive 15 min early")
+browse doctors → search / filter / view profile
+  → sign up + verify phone → pick clinic + date + time
+  → hold slot → pay by card → confirmation
 ```
 
 **Patient cancels:**
 
 ```
-preview cancellation (shows fee consequence) → confirm cancel
-  → server decides free (≥24h, refund issued) vs. no-refund (<24h)
-  → slot released → reminder cancelled → notification sent
+open booking → preview cancellation → confirm
+  → slot released → refund issued if applicable → notification sent
 ```
-
-**Failure paths:** taken slot → `409 Conflict`; failed payment → failure screen, slot stays free; consumer failure (e.g. SMS down) → booking still stands, event retried then dead-lettered.
 
 ---
 
@@ -102,7 +98,7 @@ cd Health-app-team-c
 cp .env.example .env
 ```
 
-Fill in the required variables (app fail-fasts on missing values). Inside the Docker network, hosts are service names:
+Fill in the required variables (the app fails fast on missing values). Inside the Docker network, hosts are service names:
 
 ```env
 PORT=3000
@@ -152,28 +148,28 @@ Point `DB_HOST`, `REDIS_HOST`, and `RABBITMQ_URL` at your local Postgres / Redis
 ```
 src/
 ├── main.ts                  # bootstrap: api/v1 prefix, ValidationPipe, TransformInterceptor, GlobalExceptionFilter
-├── app.module.ts            # module wiring, RabbitMQ exchanges (*_exchange + .dlx), global middleware
-├── config/                  # typeorm/rabbitmq config + Joi validation schema (fail-fast)
+├── app.module.ts            # module wiring and global middleware
+├── config/                  # typeorm/rabbitmq config + validation schema
 ├── common/
-│   ├── middleware/          # AuthContextMiddleware (JWT or x-device-id guests)
-│   ├── guards/              # RolesGuard (deny by default)
+│   ├── middleware/          # auth context (JWT or guest device id)
+│   ├── guards/              # access control
 │   ├── decorators/          # @Roles(...)
-│   ├── filters/             # GlobalExceptionFilter (error envelope, machine codes)
-│   ├── interceptors/        # TransformInterceptor (success envelope)
-│   ├── outbox/              # OutboxEventEntity, ProcessedEventEntity, OutboxProcessorService, AlertService
-│   ├── redis/               # Redis module (cache, OTP/rate-limit counters)
+│   ├── filters/             # global error handling
+│   ├── interceptors/        # response envelope
+│   ├── outbox/              # transactional outbox + event relay
+│   ├── redis/               # cache and counters
 │   ├── mail/                # email sending
-│   └── utils/               # hashing, phone masking/normalization, helpers
-├── database/seeds/          # seed runner (npm run seed, seeder service in compose)
+│   └── utils/               # hashing, phone helpers
+├── database/seeds/          # seed runner
 └── modules/
-    ├── auth/                # registration, OTP, login, sessions, guests
-    ├── catalog/             # specialties, doctors, clinics, pairings, reviews, favorites, articles
-    ├── search/              # unified search, filters, sort, map view
-    ├── booking/             # holds, appointments, cancellation/reschedule policy
+    ├── auth/                # registration, OTP, login, sessions
+    ├── catalog/             # specialties, doctors, clinics, reviews, favorites, articles
+    ├── search/              # search, filters, sort, map view
+    ├── booking/             # holds, appointments, cancellation/reschedule
     ├── payment/             # cards, charges, refunds, webhooks
     ├── notification/        # inbox + push/SMS/email consumers
-    ├── prescription/        # prescription files, signed links
-    ├── ai-assistant/        # read-only AI tools, limits, spend guardrails
+    ├── prescription/        # prescription files
+    ├── ai-assistant/        # assistant tools and limits
     └── analytics/           # event-fed counters
 ```
 
@@ -181,7 +177,7 @@ src/
 
 ## API Endpoints Overview
 
-Base prefix: `/api/v1`. Guests may browse/search; booking, favorites, and notifications require an account.
+Base prefix: `/api/v1`. Browsing and search are open to guests; booking, favorites and notifications require a signed-in user.
 
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
@@ -191,19 +187,21 @@ Base prefix: `/api/v1`. Guests may browse/search; booking, favorites, and notifi
 | `POST` | `/api/v1/auth/refresh-token` | Issue a new access token via refresh token | Public |
 | `POST` | `/api/v1/auth/resend-otp` | Resend a new verification code | Public |
 | `GET` | `/api/v1/auth/me` | Get the current authenticated user's profile | Authenticated |
-| `POST` | `/api/v1/booking/holds` | Hold a slot while paying (10 min) | Patient |
-| `POST` | `/api/v1/booking/holds/:id/extend` | One 5-minute 3DS extension | Patient |
-| `GET` | `/api/v1/booking/appointments/:id/cancellation-preview` | Preview fee consequence (not the decision) | Patient |
-| `POST` | `/api/v1/booking/appointments/:id/cancel` | Cancel; server decides refund at confirm time | Patient |
-| `POST` | `/api/v1/booking/appointments/:id/reschedule` | Reschedule once, same 24h rule | Patient |
+| `POST` | `/api/v1/booking/holds` | Hold a slot while paying | Patient |
+| `POST` | `/api/v1/booking/holds/:id/extend` | Extend a hold during bank confirmation | Patient |
+| `GET` | `/api/v1/booking/appointments/:id/cancellation-preview` | Preview cancellation outcome | Patient |
+| `POST` | `/api/v1/booking/appointments/:id/cancel` | Cancel an appointment | Patient |
+| `POST` | `/api/v1/booking/appointments/:id/reschedule` | Reschedule an appointment | Patient |
 
-Catalog, search, payment, notification, prescription, and AI-assistant routes follow the same Controller → Use-Case → Service pattern with DTOs and `@Roles(...)` on every route.
+See the controllers in `src/modules/` for the full route list. All routes validate input with DTOs and return the shared envelope.
 
 ---
 
 ## Architecture
 
-Full architecture documentation lives in [`docs/architecture.md`](docs/architecture.md). It covers the runtime diagram and compose services, vertical-slice layout, the request lifecycle (middleware → guard → pipe → use-case → interceptor → filter), the transactional outbox flow with exchanges and DLQs, the consumer idempotency contract, concurrency/money guarantees, authN/authZ and abuse protection, and configuration. The live event catalogue is in [`docs/event-catalogue.md`](docs/event-catalogue.md).
+Full architecture documentation lives in [`docs/architecture.md`](docs/architecture.md). The live event catalogue is in [`docs/event-catalogue.md`](docs/event-catalogue.md).
+
+High level: vertical feature modules behind a validated request pipeline, Postgres as the source of truth with constraints guarding slots and money, RabbitMQ for domain events via a transactional outbox with idempotent consumers and dead-lettering, plus Redis and scheduled jobs for expiry, reminders and counters.
 
 ---
 
@@ -216,7 +214,7 @@ npm run test:e2e                            # e2e (test/jest-e2e.json)
 npm run test:cov                            # coverage
 ```
 
-Notable: the hold-concurrency proof (`create-hold.concurrent.spec.ts`) is skipped unless `DB_HOST`/`DB_NAME` is set and must run against real Postgres (expects exactly one winner via `23505`). Do not add suites needing RabbitMQ/Stripe/real SMS without a skip guard. Business rules under test: cancellation boundaries (>, <, exactly 24h), availability, booking money paths, authZ (guest blocked, user A vs. user B), consumer idempotency.
+Unit tests cover cancellation, availability, booking, validation, authorization and event consumers, plus integration tests for the book-to-confirm and cancel-to-refund flows.
 
 ---
 
@@ -224,5 +222,5 @@ Notable: the hold-concurrency proof (`create-hold.concurrent.spec.ts`) is skippe
 
 1. Create a feature branch from `main`.
 2. Follow the existing module structure (Controller → Use Case / Service → Repository).
-3. Keep domain code `any`-free, add DTOs with `class-validator`, and put every business rule in a use-case/policy with a colocated `*.spec.ts`.
+3. Add DTO validation and tests for new behavior.
 4. Open a pull request with a clear description of the change.
