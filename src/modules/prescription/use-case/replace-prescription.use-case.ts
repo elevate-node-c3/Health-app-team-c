@@ -102,7 +102,7 @@ export class ReplacePrescriptionUseCase {
         return { prescription, oldKey, eventId: event.id };
       });
 
-      await this.storage.delete(oldKey).catch(() => undefined);
+      await this.storage.delete(oldKey).catch((err: Error) => this.logger.warn(`Prescription old file cleanup failed for ${oldKey}: ${err.message}`));
 
       setImmediate(() => {
         this.outboxProcessor.triggerPublish(eventId).catch((err: Error) => {
@@ -113,7 +113,7 @@ export class ReplacePrescriptionUseCase {
       this.logger.log(`Prescription ${prescription.id} replaced for appointment ${appointmentId} sizeBytes=${fileBuffer.length} mime=${mime}`);
       return prescription;
     } catch (err) {
-      await this.storage.delete(storageKey).catch(() => undefined);
+      await this.storage.delete(storageKey).catch((cleanupErr: Error) => this.logger.warn(`Prescription file cleanup failed for ${storageKey}: ${cleanupErr.message}`));
       throw err;
     }
   }

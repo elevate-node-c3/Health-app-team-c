@@ -16,7 +16,9 @@ export function prescriptionLinkTtlSeconds(): number {
 }
 
 function linkSigningKey(): string {
-  return process.env.JWT_ACCESS_SECRET ?? 'access_secret_key';
+  const key = process.env.JWT_ACCESS_SECRET;
+  if (!key) throw new Error('JWT_ACCESS_SECRET is not defined in environment variables.');
+  return key;
 }
 
 export function mintDownloadToken(prescriptionId: string, ttlSeconds: number = prescriptionLinkTtlSeconds(), nowMs: number = Date.now()): { token: string; expiresAt: Date } {
@@ -48,8 +50,13 @@ export function verifyDownloadToken(token: string, nowMs: number = Date.now()): 
   }
   const [prescriptionId, expiresAtUnix, signature] = parts;
   const expected = createHmac('sha256', linkSigningKey()).update(`${prescriptionId}.${expiresAtUnix}`).digest('hex');
-  const valid = signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  if (!valid || Number(expiresAtUnix) * 1000 <= nowMs) {
+  const actual = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+  const valid =
+    actual.length === wanted.length &&
+    timingSafeEqual(actual, wanted) &&
+    Number(expiresAtUnix) * 1000 > nowMs;
+  if (!valid) {
     throw new ForbiddenException({
       code: 'PRESCRIPTION_LINK_INVALID',
       messageKey: 'errors.prescription.link_invalid',
@@ -106,8 +113,8 @@ export class PrescriptionService {
     return { url: `/api/v1/prescriptions/download?token=${token}`, expiresAt: expiresAt.toISOString() };
   }
 
-  async downloadFor(requesterId: string | undefined, role: string, token: string): Promise<{ buffer: Buffer; mimeType: string; sizeBytes: number }> {
-    if (!token) {
+  async downloadFor(requesterId: string | undefined, role: string, token: string | string[]): Promise<{ buffer: Buffer; mimeType: string; sizeBytes: number }> {
+    if (!token || Array.isArray(token)) {
       throw new BadRequestException({
         code: 'PRESCRIPTION_LINK_INVALID',
         messageKey: 'errors.prescription.link_invalid',

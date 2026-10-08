@@ -45,8 +45,9 @@ export class AuthContextMiddleware implements NestMiddleware {
 
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
+            const secret = process.env.JWT_ACCESS_SECRET;
+            if (!secret) throw new Error('JWT_ACCESS_SECRET is not defined in environment variables.');
             try {
-                const secret = process.env.JWT_ACCESS_SECRET || 'access_secret_key';
                 const payload = this.tokenUtils.verifyToken(token, secret);
 
                 req.userContext = {
