@@ -1,83 +1,113 @@
 # DOCURA Backend API
 
-A robust, scalable, and secure backend system for the **DOCURA** healthcare platform — a doctor appointment booking service. Built with **NestJS**, **TypeScript**, and **PostgreSQL**, following Clean Architecture principles and strict separation of concerns.
+Short description: DOCURA is a doctor appointment booking backend for patients in Egypt. It lets guests browse doctors, search and filter by specialty, fee, rating, and availability, then — once registered with a verified phone — hold a slot, pay by card, and manage bookings (cancel, reschedule, refunds, prescriptions). Built with NestJS 10 + TypeScript + PostgreSQL (TypeORM) + RabbitMQ + Redis, it is event-driven via a transactional outbox, enforces money and concurrency rules in the database, and never trusts the client for price, availability, or refund decisions.
+
+## Table of Contents
+
+- [Short Description](#docura-backend-api)
+- [Key Features](#key-features)
+- [Tech Stack](#tech-stack)
+- [How It Works](#how-it-works)
+- [Basic Workflow](#basic-workflow)
+- [Installation](#installation)
+- [Project Structure](#project-structure)
+- [API Endpoints Overview](#api-endpoints-overview)
+- [Architecture](#architecture)
+- [Testing](#testing)
+- [Contributing](#contributing)
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-- **Advanced Authentication System** — Secure multi-device session management via a dedicated `RefreshToken` entity, allowing users to stay signed in safely across multiple devices.
-- **Token Security** — Refresh tokens are hashed (SHA-256) before being persisted, so a database breach never exposes usable tokens.
-- **Email Verification Flow** — OTP-based email verification with built-in security tracking: limited failed attempts and code expiration handling.
-- **Event-Driven Architecture** — Domain events (e.g. `user.registered`) are published via **RabbitMQ**, decoupling core business logic (signup) from side effects (sending emails).
-- **Transactional Outbox Pattern** — Events are written to the database in the same transaction as the business change, then reliably relayed to RabbitMQ by a background processor — no lost events, even if the app crashes mid-request.
-- **Dead Letter Queue (DLQ)** — Messages that repeatedly fail processing (e.g. email delivery) are routed to a dedicated queue for inspection, instead of being silently dropped or retried forever.
-- **Modular Architecture** — Organized into distinct Use Cases, Services, and Entities for high testability and easy team handovers.
-- **Fully Containerized** — The entire environment (API, PostgreSQL, RabbitMQ, pgAdmin) runs via Docker Compose with hot-reload for local development.
+- **Guest-first discovery** — browse, search, filter, view profiles and availability without an account; booking requires a verified phone.
+- **Phone verification** — 4-digit OTP, 3-minute expiry, single-use, purpose-bound, with resend and lockout limits.
+- **Slot holds** — 10-minute hold while paying, one 5-minute extension for 3-D Secure; abandoned holds auto-release.
+- **Concurrency-safe booking** — one active appointment per slot enforced by a DB unique constraint (`23505` → `409 Conflict`).
+- **Cancellation policy** — ≥24h = free cancellation + refund; <24h = no refund; reschedule once under the same rule; decided server-side at confirmation time.
+- **Payments in EGP** — `decimal(10,2)`, cards stored as last4/brand/expiry only, idempotent charges and refunds.
+- **Event-driven side effects** — booking, payment, cancellation, and auth flows publish domain events; notifications, reminders, and counters subscribe independently.
+- **Transactional outbox + DLQ** — events committed with the business change, relayed by a cron processor, retried then dead-lettered; consumers are idempotent and non-throwing.
+- **Deny-by-default authZ** — every route needs `@Roles(...)`; cross-user reads return 404, not 403.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Category | Technology |
 |---|---|
-| Framework | [NestJS](https://nestjs.com/) |
+| Framework | [NestJS](https://nestjs.com/) 10 |
 | Language | TypeScript |
-| Database | PostgreSQL |
-| ORM | TypeORM |
+| Database | PostgreSQL + TypeORM |
 | Messaging | RabbitMQ (`@golevelup/nestjs-rabbitmq`) |
-| Scheduling | `@nestjs/schedule` (outbox processor cron job) |
-| Auth | JWT (access + refresh tokens) |
+| Cache / counters | Redis (`ioredis`) |
+| Scheduling | `@nestjs/schedule` (outbox processor cron) |
+| Auth | JWT access + SHA-256 hashed refresh tokens |
+| Validation | `class-validator` + global `ValidationPipe` |
+| Config | `@nestjs/config` + Joi fail-fast schema |
+| Payments | Stripe (signature-verified webhooks, idempotency keys) |
 | Containerization | Docker & Docker Compose |
 
 ---
 
-## 📁 Project Structure
+## How It Works
 
-```
-src/
-├── common/
-│   ├── utils/            # Helper utilities (token generation, hashing, etc.)
-│   ├── middleware/        # Global middleware (auth context, etc.)
-│   ├── filters/            # Global exception filter
-│   └── outbox/             # Transactional outbox entities & processor
-└── modules/
-    ├── auth/                # Authentication module
-    │   ├── entities/        # User & RefreshToken entities
-    │   ├── use-case/        # Isolated business logic (SignupUseCase, VerifyEmailUseCase, etc.)
-    │   ├── dto/              # Data transfer objects
-    │   ├── consumers/        # RabbitMQ event consumers
-    │   ├── auth.controller.ts
-    │   ├── auth-token.service.ts
-    │   └── auth.module.ts
-    └── users/                # User management module
-```
+1. **Request pipeline** — `AuthContextMiddleware` builds the caller context (Bearer JWT or `x-device-id` for guests) → `RolesGuard` checks `@Roles(...)` (deny by default) → global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`) validates the DTO → Controller (HTTP only) → Use-Case (business rules) → Service / TypeORM entity. Responses use the `TransformInterceptor` success envelope; errors go through the `GlobalExceptionFilter` with stable machine codes.
+2. **Discovery** — fee and schedule live on the doctor↔clinic pairing, so the same doctor can charge different fees at different clinics. Search resolves both specialties and doctor names; the 1000 EGP price filter means "1000 and above".
+3. **Booking** — patient creates a slot hold → pays by card → availability is re-checked at payment time → the appointment is inserted under a DB unique constraint so exactly one of two simultaneous bookers wins. Failed payment creates no appointment and leaves the slot free.
+4. **Events** — each state change writes its row plus an `outbox_events` row in one transaction. `OutboxProcessorService` publishes pending rows to the matching `*_exchange`, retrying up to 10 times before marking `FAILED_PERMANENTLY` and alerting. Consumers check `ProcessedEventEntity` first (idempotent), do their own work (email/SMS/push, reminders, counters), and on repeated failure route to the `.dlx` exchange instead of breaking the booking.
+5. **Cancel / reschedule** — the server computes free vs. no-refund from the live clock at confirmation time (a preview shown earlier is never the decision). Cancelling always frees the slot; free cancellations create a refund with a `refund-pending` state (5–10 business days).
 
 ---
 
-## ⚙️ Getting Started
+## Basic Workflow
+
+**Patient books a visit:**
+
+```
+browse doctors (guest OK) → search / filter / view profile + per-clinic slots
+  → sign up + verify phone (OTP) → pick clinic + date + time → hold slot (10 min)
+  → pay by card → instant confirmation (in-app + SMS/email/push, "arrive 15 min early")
+```
+
+**Patient cancels:**
+
+```
+preview cancellation (shows fee consequence) → confirm cancel
+  → server decides free (≥24h, refund issued) vs. no-refund (<24h)
+  → slot released → reminder cancelled → notification sent
+```
+
+**Failure paths:** taken slot → `409 Conflict`; failed payment → failure screen, slot stays free; consumer failure (e.g. SMS down) → booking still stands, event retried then dead-lettered.
+
+---
+
+## Installation
 
 ### Prerequisites
 
-- [Docker](https://www.docker.com/) and Docker Compose installed on your machine.
+- Node.js 20+, npm
+- Docker + Docker Compose (recommended: runs API + Postgres + Redis + RabbitMQ + pgAdmin + seeder)
 
-### 1. Clone the Repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/elevate-node-c3/Health-app-team-c.git
 cd Health-app-team-c
 ```
 
-### 2. Environment Configuration
+### 2. Configure environment
 
-Create a `.env` file in the project root:
+```bash
+cp .env.example .env
+```
+
+Fill in the required variables (app fail-fasts on missing values). Inside the Docker network, hosts are service names:
 
 ```env
-# App
 PORT=3000
-NODE_ENV=development
+API_PREFIX=api/v1
 
-# Database
 DB_HOST=postgres
 DB_PORT=5432
 DB_USERNAME=docura
@@ -86,60 +116,113 @@ DB_NAME=docura_db
 DB_SYNC=true
 DB_LOGGING=false
 
-# JWT
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=15m
-REFRESH_TOKEN_SECRET=your_refresh_secret
-REFRESH_TOKEN_EXPIRES_IN=7d
+JWT_ACCESS_SECRET=your_jwt_secret
+JWT_REFRESH_SECRET=your_refresh_secret
 
-# RabbitMQ
-RABBITMQ_URI=amqp://guest:guest@rabbitmq:5672
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=guest
+RABBITMQ_PORT=5672
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
 ```
 
-### 3. Run Everything via Docker Compose
+### 3. Run with Docker Compose (recommended)
 
 ```bash
 docker compose up --build
 ```
 
-This starts the API, PostgreSQL, RabbitMQ, and pgAdmin — with hot-reload enabled, so code changes are picked up automatically without rebuilding.
+Starts the API (hot-reload), PostgreSQL, Redis, RabbitMQ (management UI on `:15672`), pgAdmin (`:5050`), and a one-shot seeder. Stop with `docker compose down`; wipe all data with `docker compose down -v`.
 
-To stop the containers:
+### 4. Or run locally (no Docker)
 
 ```bash
-docker compose down
+npm install
+npm run start:dev
 ```
 
-To stop and wipe all data (fresh start):
+Point `DB_HOST`, `REDIS_HOST`, and `RABBITMQ_URL` at your local Postgres / Redis / RabbitMQ. Other commands: `npm run build`, `npm run start:prod`, `npm run lint`, `npm run seed`, `npm test`.
 
-```bash
-docker compose down -v
+---
+
+## Project Structure
+
+```
+src/
+├── main.ts                  # bootstrap: api/v1 prefix, ValidationPipe, TransformInterceptor, GlobalExceptionFilter
+├── app.module.ts            # module wiring, RabbitMQ exchanges (*_exchange + .dlx), global middleware
+├── config/                  # typeorm/rabbitmq config + Joi validation schema (fail-fast)
+├── common/
+│   ├── middleware/          # AuthContextMiddleware (JWT or x-device-id guests)
+│   ├── guards/              # RolesGuard (deny by default)
+│   ├── decorators/          # @Roles(...)
+│   ├── filters/             # GlobalExceptionFilter (error envelope, machine codes)
+│   ├── interceptors/        # TransformInterceptor (success envelope)
+│   ├── outbox/              # OutboxEventEntity, ProcessedEventEntity, OutboxProcessorService, AlertService
+│   ├── redis/               # Redis module (cache, OTP/rate-limit counters)
+│   ├── mail/                # email sending
+│   └── utils/               # hashing, phone masking/normalization, helpers
+├── database/seeds/          # seed runner (npm run seed, seeder service in compose)
+└── modules/
+    ├── auth/                # registration, OTP, login, sessions, guests
+    ├── catalog/             # specialties, doctors, clinics, pairings, reviews, favorites, articles
+    ├── search/              # unified search, filters, sort, map view
+    ├── booking/             # holds, appointments, cancellation/reschedule policy
+    ├── payment/             # cards, charges, refunds, webhooks
+    ├── notification/        # inbox + push/SMS/email consumers
+    ├── prescription/        # prescription files, signed links
+    ├── ai-assistant/        # read-only AI tools, limits, spend guardrails
+    └── analytics/           # event-fed counters
 ```
 
 ---
 
-## 📌 API Endpoints Overview
+## API Endpoints Overview
+
+Base prefix: `/api/v1`. Guests may browse/search; booking, favorites, and notifications require an account.
 
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
 | `POST` | `/api/v1/auth/signup` | Register a new user account | Public |
 | `POST` | `/api/v1/auth/verify-email` | Verify email address using OTP | Public |
-| `POST` | `/api/v1/auth/login` | Authenticate user & issue tokens | Public |
-| `POST` | `/api/v1/auth/refresh-token` | Generate a new access token via refresh token | Public |
+| `POST` | `/api/v1/auth/login` | Authenticate user and issue tokens | Public |
+| `POST` | `/api/v1/auth/refresh-token` | Issue a new access token via refresh token | Public |
 | `POST` | `/api/v1/auth/resend-otp` | Resend a new verification code | Public |
 | `GET` | `/api/v1/auth/me` | Get the current authenticated user's profile | Authenticated |
+| `POST` | `/api/v1/booking/holds` | Hold a slot while paying (10 min) | Patient |
+| `POST` | `/api/v1/booking/holds/:id/extend` | One 5-minute 3DS extension | Patient |
+| `GET` | `/api/v1/booking/appointments/:id/cancellation-preview` | Preview fee consequence (not the decision) | Patient |
+| `POST` | `/api/v1/booking/appointments/:id/cancel` | Cancel; server decides refund at confirm time | Patient |
+| `POST` | `/api/v1/booking/appointments/:id/reschedule` | Reschedule once, same 24h rule | Patient |
+
+Catalog, search, payment, notification, prescription, and AI-assistant routes follow the same Controller → Use-Case → Service pattern with DTOs and `@Roles(...)` on every route.
 
 ---
 
-## 🧩 Architecture Notes
+## Architecture
 
-- **Outbox → RabbitMQ → Consumer flow**: when a user signs up, the `SignupUseCase` saves the new user *and* an outbox event in the same database transaction. A scheduled job (`OutboxProcessorService`) picks up unprocessed events and publishes them to RabbitMQ. This guarantees the event is never lost, even if the process crashes right after the user is created.
-- **Consumers are non-throwing by design**: a RabbitMQ consumer failure (e.g. the email provider is down) never retries an unbounded number of times in a tight loop. Failed messages are negatively acknowledged without requeue and routed to a dedicated Dead Letter Queue for later inspection.
+Full architecture documentation lives in [`docs/architecture.md`](docs/architecture.md). It covers the runtime diagram and compose services, vertical-slice layout, the request lifecycle (middleware → guard → pipe → use-case → interceptor → filter), the transactional outbox flow with exchanges and DLQs, the consumer idempotency contract, concurrency/money guarantees, authN/authZ and abuse protection, and configuration. The live event catalogue is in [`docs/event-catalogue.md`](docs/event-catalogue.md).
 
 ---
 
-## 🤝 Contributing
+## Testing
+
+```bash
+npm test                                   # unit suites (src, *.spec.ts)
+npx jest src/modules/booking/policies/cancellation-policy.spec.ts  # single rule
+npm run test:e2e                            # e2e (test/jest-e2e.json)
+npm run test:cov                            # coverage
+```
+
+Notable: the hold-concurrency proof (`create-hold.concurrent.spec.ts`) is skipped unless `DB_HOST`/`DB_NAME` is set and must run against real Postgres (expects exactly one winner via `23505`). Do not add suites needing RabbitMQ/Stripe/real SMS without a skip guard. Business rules under test: cancellation boundaries (>, <, exactly 24h), availability, booking money paths, authZ (guest blocked, user A vs. user B), consumer idempotency.
+
+---
+
+## Contributing
 
 1. Create a feature branch from `main`.
 2. Follow the existing module structure (Controller → Use Case / Service → Repository).
-3. Open a pull request with a clear description of the change.
+3. Keep domain code `any`-free, add DTOs with `class-validator`, and put every business rule in a use-case/policy with a colocated `*.spec.ts`.
+4. Open a pull request with a clear description of the change.
