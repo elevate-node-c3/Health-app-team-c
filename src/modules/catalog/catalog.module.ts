@@ -15,6 +15,7 @@ import { ListFilteredDoctorsUseCase } from "./use-case/list-filtered-doctors.use
 import { DoctorClinicEntity } from "./entities/doctor-clinic.entity";
 import { ClinicEntity } from "./entities/clinic.entity";
 import { CatalogSeeder } from "src/database/seeds/catalog.seed";
+import { DemoSeeder } from "src/database/seeds/demo.seed";
 import { ArticleEntity } from "./entities/article.entity";
 import { FavoriteEntity } from "./entities/favorite.entity";
 import { NotificationEntity } from "./entities/notification.entity";
@@ -48,6 +49,7 @@ import { OutboxModule } from "src/common/outbox/outbox.module";
   providers: [
     CatalogService,
     CatalogSeeder,
+    DemoSeeder,
     GetHomeDashboardUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
@@ -58,6 +60,6 @@ import { OutboxModule } from "src/common/outbox/outbox.module";
     GetDoctorProfileUseCase,
     GetDoctorAvailabilityUseCase,
   ],
-  exports: [CatalogSeeder, GetDoctorAvailabilityUseCase],
+  exports: [CatalogSeeder, DemoSeeder, GetDoctorAvailabilityUseCase],
 })
 export class CatalogModule { }
