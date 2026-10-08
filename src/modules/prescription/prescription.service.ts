@@ -50,8 +50,13 @@ export function verifyDownloadToken(token: string, nowMs: number = Date.now()): 
   }
   const [prescriptionId, expiresAtUnix, signature] = parts;
   const expected = createHmac('sha256', linkSigningKey()).update(`${prescriptionId}.${expiresAtUnix}`).digest('hex');
-  const valid = signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  if (!valid || Number(expiresAtUnix) * 1000 <= nowMs) {
+  const actual = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+  const valid =
+    actual.length === wanted.length &&
+    timingSafeEqual(actual, wanted) &&
+    Number(expiresAtUnix) * 1000 > nowMs;
+  if (!valid) {
     throw new ForbiddenException({
       code: 'PRESCRIPTION_LINK_INVALID',
       messageKey: 'errors.prescription.link_invalid',
