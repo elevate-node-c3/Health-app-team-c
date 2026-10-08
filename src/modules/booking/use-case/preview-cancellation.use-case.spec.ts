@@ -17,16 +17,18 @@ describe('PreviewCancellationUseCase', () => {
     const mockPatientId = 'patient-123';
     const mockFee = 250;
 
-    const createFutureDate = (hoursInFuture: number): Date => {
+    const createFutureDate = (hoursInFuture: number) => {
         const d = new Date();
         d.setHours(d.getHours() + hoursInFuture);
-        return d;
+        // Format relative to local timezone rather than mixing UTC date and local time
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const startTime = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return { date, startTime };
     };
 
-    const createPastDate = (hoursInPast: number): Date => {
-        const d = new Date();
-        d.setHours(d.getHours() - hoursInPast);
-        return d;
+    const createPastDate = (hoursInPast: number) => {
+        return createFutureDate(-hoursInPast);
     };
 
     beforeEach(async () => {
@@ -97,13 +99,13 @@ describe('PreviewCancellationUseCase', () => {
         });
 
         it('should throw BadRequestException if appointment has already started', async () => {
-            const pastTime = createPastDate(1);
+            const { date, startTime } = createPastDate(1);
             appointmentRepo.findOne.mockResolvedValue({
                 id: mockAppointmentId,
                 patientId: mockPatientId,
                 status: AppointmentStatus.BOOKED,
-                date: pastTime.toISOString().split('T')[0],
-                startTime: pastTime.toTimeString().split(' ')[0],
+                date: date,
+                startTime: startTime,
             } as AppointmentEntity);
 
             await expect(
@@ -112,14 +114,14 @@ describe('PreviewCancellationUseCase', () => {
         });
 
         it('should return FREE outcome with full refund when cancelled > 24 hours in advance', async () => {
-            const futureTime = createFutureDate(48);
+            const { date, startTime } = createFutureDate(48);
             appointmentRepo.findOne.mockResolvedValue({
                 id: mockAppointmentId,
                 patientId: mockPatientId,
                 status: AppointmentStatus.BOOKED,
                 snapshotConsultationFee: mockFee,
-                date: futureTime.toISOString().split('T')[0],
-                startTime: futureTime.toTimeString().split(' ')[0],
+                date: date,
+                startTime: startTime,
             } as AppointmentEntity);
 
             const result = await useCase.execute(mockAppointmentId, mockPatientId);
@@ -134,14 +136,14 @@ describe('PreviewCancellationUseCase', () => {
         });
 
         it('should return NO_REFUND outcome when cancelled within 24 hours', async () => {
-            const futureTime = createFutureDate(5);
+            const { date, startTime } = createFutureDate(5);
             appointmentRepo.findOne.mockResolvedValue({
                 id: mockAppointmentId,
                 patientId: mockPatientId,
                 status: AppointmentStatus.BOOKED,
                 snapshotConsultationFee: mockFee,
-                date: futureTime.toISOString().split('T')[0],
-                startTime: futureTime.toTimeString().split(' ')[0],
+                date: date,
+                startTime: startTime,
             } as AppointmentEntity);
 
             const result = await useCase.execute(mockAppointmentId, mockPatientId);
@@ -156,14 +158,14 @@ describe('PreviewCancellationUseCase', () => {
         });
 
         it('should default snapshotConsultationFee to 0 if null/undefined', async () => {
-            const futureTime = createFutureDate(48);
+            const { date, startTime } = createFutureDate(48);
             appointmentRepo.findOne.mockResolvedValue({
                 id: mockAppointmentId,
                 patientId: mockPatientId,
                 status: AppointmentStatus.BOOKED,
                 snapshotConsultationFee: null,
-                date: futureTime.toISOString().split('T')[0],
-                startTime: futureTime.toTimeString().split(' ')[0],
+                date: date,
+                startTime: startTime,
             } as unknown as AppointmentEntity);
 
             const result = await useCase.execute(mockAppointmentId, mockPatientId);

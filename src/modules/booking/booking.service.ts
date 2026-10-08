@@ -6,6 +6,8 @@ import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
 import { RescheduleAppointmentUseCase } from './use-case/reschedule-appointment.use-case';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { GetMyBookingsUseCase } from './use-case/get-my-bookings.use-case';
+import { GetMyBookingsDto } from './dto/get-my-bookings.dto';
 
 @Injectable()
 export class BookingService {
@@ -15,6 +17,7 @@ export class BookingService {
     private readonly previewCancel: PreviewCancellationUseCase,
     private readonly cancelAppointment: CancelAppointmentUseCase,
     private readonly rescheduleAppointment: RescheduleAppointmentUseCase,
+    private readonly getMyBookingsUseCase: GetMyBookingsUseCase,
   ) { }
 
   createHoldFor(patientId: string, dto: CreateHoldDto) {
@@ -41,4 +44,7 @@ export class BookingService {
     return this.rescheduleAppointment.execute(appointmentId, patientId, dto);
   }
 
+  getMyBookings(userId: string, dto: GetMyBookingsDto) {
+    return this.getMyBookingsUseCase.execute(userId, dto);
+  }
 }

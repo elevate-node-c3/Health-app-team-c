@@ -6,6 +6,7 @@ import { SlotHoldEntity } from './entities/slot-hold.entity';
 import { AppointmentReminderEntity } from './entities/appointment-reminder.entity';
 import { DoctorClinicEntity } from '../catalog/entities/doctor-clinic.entity';
 import { AppointmentEntity } from '../catalog/entities/appointment.entity';
+import { PrescriptionEntity } from '../prescription/entities/prescription.entity';
 import { OutboxEventEntity } from 'src/common/outbox/entities/outbox-event.entity';
 import { ProcessedEventEntity } from 'src/common/outbox/entities/processed-event.entity';
 import { OutboxModule } from 'src/common/outbox/outbox.module';
@@ -19,6 +20,7 @@ import { AppointmentReminderSchedulingConsumer } from './consumer/appointment-re
 import { PreviewCancellationUseCase } from './use-case/preview-cancellation.use-case';
 import { CancelAppointmentUseCase } from './use-case/cancel-appointment.use-case';
 import { RescheduleAppointmentUseCase } from './use-case/reschedule-appointment.use-case';
+import { GetMyBookingsUseCase } from './use-case/get-my-bookings.use-case';
 import { AppointmentCancelledConsumer } from './consumer/appiontment-cancle.consumer';
 import { PaymentModule } from '../payment/payment.module';
 
@@ -29,6 +31,7 @@ import { PaymentModule } from '../payment/payment.module';
       AppointmentReminderEntity,
       DoctorClinicEntity,
       AppointmentEntity,
+      PrescriptionEntity,
       OutboxEventEntity,
       ProcessedEventEntity,
     ]),
@@ -48,6 +51,7 @@ import { PaymentModule } from '../payment/payment.module';
     PreviewCancellationUseCase,
     CancelAppointmentUseCase,
     RescheduleAppointmentUseCase,
+    GetMyBookingsUseCase,
     AppointmentCancelledConsumer,
   ],
 })

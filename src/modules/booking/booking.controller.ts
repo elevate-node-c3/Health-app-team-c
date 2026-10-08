@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Param, Req, UseGuards, ParseUUIDPipe, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, Req, UseGuards, ParseUUIDPipe, Get, Query } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { CreateHoldDto } from './dto/create-hold.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { GetMyBookingsDto } from './dto/get-my-bookings.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserStatus } from '../auth/entities/user.entity';
@@ -22,6 +23,12 @@ export class BookingController {
   @Roles(UserStatus.PATIENT)
   extendHold(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     return this.bookingService.extendHoldFor(req.userContext.userId, id);
+  }
+  @Get('my-bookings')
+  @UseGuards(RolesGuard)
+  @Roles(UserStatus.PATIENT)
+  getMyBookings(@Query() dto: GetMyBookingsDto, @Req() req) {
+    return this.bookingService.getMyBookings(req.userContext.userId, dto);
   }
 
 
