@@ -28,6 +28,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             if (Array.isArray(res.message)) {
                 message = res.message.join(', ');
             }
+        } else if ((exception as { code?: string })?.code === 'LIMIT_FILE_SIZE') {
+            status = HttpStatus.PAYLOAD_TOO_LARGE;
+            errorCode = 'PRESCRIPTION_TOO_LARGE';
+            message = 'errors.prescription.too_large';
         } else if (exception instanceof Error) {
             message = exception.message;
         }

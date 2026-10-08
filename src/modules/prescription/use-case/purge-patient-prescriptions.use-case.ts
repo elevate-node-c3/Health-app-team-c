@@ -17,11 +17,11 @@ export class PurgePatientPrescriptionsUseCase {
 
   async execute(patientId: string): Promise<{ deleted: number }> {
     const rows = await this.prescriptions.find({ where: { patientId } });
-    for (const row of rows) {
-      await this.storage.delete(row.storageKey).catch(() => undefined);
-    }
     if (rows.length > 0) {
       await this.prescriptions.delete({ patientId });
+    }
+    for (const row of rows) {
+      await this.storage.delete(row.storageKey).catch((err: Error) => this.logger.warn(`Prescription file cleanup failed for ${row.storageKey}: ${err.message}`));
     }
     this.logger.log(`Purged ${rows.length} prescriptions for patient ${patientId}`);
     return { deleted: rows.length };

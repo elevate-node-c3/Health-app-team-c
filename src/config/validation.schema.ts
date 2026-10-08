@@ -20,4 +20,7 @@ export const validationSchema = Joi.object({
     PRESCRIPTION_MAX_BYTES: Joi.number().default(5242880),
     PRESCRIPTION_STORAGE_PATH: Joi.string().default('./storage/prescriptions'),
     PRESCRIPTION_LINK_TTL_SECONDS: Joi.number().default(300),
+
+    JWT_ACCESS_SECRET: Joi.string().required(),
+    JWT_REFRESH_SECRET: Joi.string().required(),
 });

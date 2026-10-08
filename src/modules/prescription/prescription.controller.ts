@@ -109,7 +109,7 @@ export class PrescriptionController {
   @Get('download')
   @UseGuards(RolesGuard)
   @Roles(UserStatus.PATIENT, UserStatus.ADMIN)
-  async download(@Query('token') token: string, @Req() req, @Res() res: Response) {
+  async download(@Query('token') token: string | string[], @Req() req, @Res() res: Response) {
     const { buffer, mimeType, sizeBytes } = await this.prescriptionService.downloadFor(
       req.userContext.userId,
       req.userContext.role,

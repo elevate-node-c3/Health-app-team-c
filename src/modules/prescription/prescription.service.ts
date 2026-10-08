@@ -16,7 +16,9 @@ export function prescriptionLinkTtlSeconds(): number {
 }
 
 function linkSigningKey(): string {
-  return process.env.JWT_ACCESS_SECRET ?? 'access_secret_key';
+  const key = process.env.JWT_ACCESS_SECRET;
+  if (!key) throw new Error('JWT_ACCESS_SECRET is not defined in environment variables.');
+  return key;
 }
 
 export function mintDownloadToken(prescriptionId: string, ttlSeconds: number = prescriptionLinkTtlSeconds(), nowMs: number = Date.now()): { token: string; expiresAt: Date } {
@@ -106,8 +108,8 @@ export class PrescriptionService {
     return { url: `/api/v1/prescriptions/download?token=${token}`, expiresAt: expiresAt.toISOString() };
   }
 
-  async downloadFor(requesterId: string | undefined, role: string, token: string): Promise<{ buffer: Buffer; mimeType: string; sizeBytes: number }> {
-    if (!token) {
+  async downloadFor(requesterId: string | undefined, role: string, token: string | string[]): Promise<{ buffer: Buffer; mimeType: string; sizeBytes: number }> {
+    if (!token || Array.isArray(token)) {
       throw new BadRequestException({
         code: 'PRESCRIPTION_LINK_INVALID',
         messageKey: 'errors.prescription.link_invalid',

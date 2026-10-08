@@ -114,7 +114,7 @@ export class AttachPrescriptionUseCase {
       this.logger.log(`Prescription ${prescription.id} attached to appointment ${appointmentId} sizeBytes=${fileBuffer.length} mime=${mime}`);
       return prescription;
     } catch (err) {
-      await this.storage.delete(storageKey).catch(() => undefined);
+      await this.storage.delete(storageKey).catch((cleanupErr: Error) => this.logger.warn(`Prescription file cleanup failed for ${storageKey}: ${cleanupErr.message}`));
       const code = (err as { code?: string }).code ?? (err as { driverError?: { code?: string } }).driverError?.code;
       if (code === '23505') {
         throw new ConflictException({
