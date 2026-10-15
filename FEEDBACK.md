@@ -1,9 +1,10 @@
-# Code Review & Architectural Evaluation — DOCURA (Project 2)
+# Team C — Code Review Feedback (Project 2: DOCURA)
 
 **Evaluated Entity:** Team C (`health-app-team-c`)  
 **Evaluator:** Principal Software Architect & Lead Backend Mentor  
-**Date:** October 10, 2026  
-**Status:** **PASSED WITH COMMENDATION** (Exemplary Clean Architecture & Test Coverage)
+**Date:** October 15, 2026  
+**Status:** **PASSED WITH COMMENDATION** (Exemplary Clean Architecture & Test Coverage)  
+**Standards Applied:** [`clean-code.md`](../../docs/standards/clean-code.md) · [`typescript.md`](../../docs/standards/typescript.md) · [`testing-jest.md`](../../docs/standards/testing-jest.md) · [`restful-api.md`](../../docs/standards/restful-api.md) · [DOCURA Requirements](../../docs/project-2-docura/requirements.md) · [Bootcamp Evaluation Rubric](https://developing-rumba-be2.notion.site/Elevate-Nodejs-Bootcamp-321a865666e2806f934cc3123376296c)
 
 ---
 
@@ -22,7 +23,7 @@ A few architectural refinements are required around error envelope standardizati
 | **Relational Concurrency & Money** | 20% | 90% | **Very Strong** (Postgres partial index, pessimistic locks; decimal transformer needed) |
 | **API Standards, Security & Validation** | 15% | 88% | **Strong** (Global prefix, strict DTO validation; error envelope refinement needed) |
 | **Testing & Quality Assurance** | 15% | 98% | **Exemplary** (79 test files, boundary unit tests, policy specs) |
-| **Total Weighted Grade** | 100% | **93.8%** | **GRADE: A (Cohort Co-Lead)** |
+| **Total Weighted Deliverables Grade** | 100% | **93.8%** | **33 / 35 (GRADE: A - Cohort Co-Lead)** |
 
 ---
 
@@ -140,7 +141,7 @@ A few architectural refinements are required around error envelope standardizati
   frozenFee: number;
   ```
 - **Architectural Risk:** In PostgreSQL via `pg` and TypeORM, `decimal` / `numeric` columns are returned by default as JavaScript `string` to prevent IEEE 754 precision loss. Typing the property as `number` without a TypeORM `ValueTransformer` creates a silent runtime type mismatch: `typeof hold.frozenFee` is `'string'`. Mathematical operations like `hold.frozenFee + 50` will result in string concatenation (`"150.0050"`), causing financial calculation defects.
-- **Remediation:** Add a reusable `ColumnNumericTransformer` or store currency in integer cents:
+- **Remediation:** Add a reusable `ColumnNumericTransformer`:
   ```typescript
   export class ColumnNumericTransformer {
     to(data: number | null): number | null {
@@ -170,7 +171,7 @@ A few architectural refinements are required around error envelope standardizati
   ```typescript
   app.enableCors();
   ```
-- **Risk:** Allows requests from any origin (`Access-Control-Allow-Origin: *`). While convenient for local development, production APIs should restrict allowed origins to trusted client domains via environment configuration.
+- **Risk:** Allows requests from any origin (`Access-Control-Allow-Origin: *`). Production APIs should restrict allowed origins to trusted client domains via environment configuration.
 - **Remediation:**
   ```typescript
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
@@ -181,11 +182,18 @@ A few architectural refinements are required around error envelope standardizati
   ```
 
 #### MIN-02 — `src/main.ts` — `CC-406` (Minor): Missing Security Middleware (`helmet`)
-- **Remediation:** Add `helmet` in `main.ts` to set essential HTTP security headers (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options):
+- **Remediation:** Add `helmet` in `main.ts` to set essential HTTP security headers.
   ```typescript
   import helmet from 'helmet';
   app.use(helmet());
   ```
+
+#### MIN-03 — Repository Root — `CC-702` (Minor): Committed `.env` File Containing Secrets in Git History
+- **Risk:** The live `.env` file containing local credentials was committed to the repository. Only `.env.example` should be tracked in version control.
+- **Remediation:** Remove `.env` from git tracking and add to `.gitignore`.
+
+#### MIN-04 — Multiple Services — `TS-001`, `TS-101` (Minor): High Usages of `: any` (154 occurrences)
+- **Remediation:** Replace `: any` with explicit domain interfaces or `unknown` with runtime type narrowing.
 
 ---
 
